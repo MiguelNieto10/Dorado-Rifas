@@ -505,7 +505,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       wallet.balance -= total;
       addActivity('compra', 'Tablero ' + fmt(value) + ' · números ' + nums.join(', ') + ' (saldo billetera)', -total);
     } else {
-      addActivity('compra', 'Tablero ' + fmt(value) + ' · números ' + nums.join(', '), 0);
+      addActivity('compra', 'Tablero ' + fmt(value) + ' · números ' + nums.join(', ') + ' (Nequi)', 0);
     }
     saveWallet();
 
@@ -986,10 +986,10 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   function doDeposit(amount){
     if(!amount || amount <= 0) return;
     wallet.balance += amount;
-    addActivity('recarga', 'Recarga de saldo', amount);
+    addActivity('recarga', 'Recarga de saldo (Nequi)', amount);
     saveWallet();
     closeModal();
-    toast('Se agregaron ' + fmt(amount) + ' a tu billetera');
+    toast('Se agregaron ' + fmt(amount) + ' a tu billetera. Envía el comprobante Nequi a un administrador.');
   }
 
   function doWithdraw(amount){
@@ -1084,7 +1084,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       if(t.closest('#clearSelBtn')){ selectedNumbers.clear(); renderCardDetail(openCardValue); return; }
       if(t.closest('#payBtn')){ openPaymentModal(); return; }
       if(t.closest('#payCancel')){ closeModal(); return; }
-      if(t.closest('#payEpayco')){ confirmPurchase('epayco'); return; }
+      if(t.closest('#payNequi')){ confirmPurchase('nequi'); return; }
       if(t.closest('#payWallet')){
         if(wallet.balance >= selectedNumbers.size * openCardValue) confirmPurchase('wallet');
         return;

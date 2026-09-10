@@ -1,8 +1,6 @@
 /**
- * Ruta de servidor para ePayco (Vercel: /api/crear-pago).
- *
- * Las llaves secretas se leen de process.env, no del HTML/JS del navegador.
- * Los cobros reales siguen desactivados (dinero simulado + Coljuegos).
+ * Ruta de servidor para pagos (Vercel: /api/crear-pago).
+ * Los cobros en la app se marcan como Nequi; el dinero sigue simulado.
  */
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -10,13 +8,10 @@ export default async function handler(req, res) {
     return;
   }
 
-  const hasKeys = Boolean(process.env.EPAYCO_PUBLIC_KEY && process.env.EPAYCO_PRIVATE_KEY);
-
   res.status(200).json({
     ok: true,
     simulated: true,
-    epaycoConfigured: hasKeys,
-    message:
-      "Los pagos reales aún no están activos. Esta ruta es el lugar del servidor donde se usarán las llaves de ePayco.",
+    method: "nequi",
+    message: "El pago se registra como Nequi. Envía el comprobante a un administrador del grupo.",
   });
 }
