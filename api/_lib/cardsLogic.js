@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 
 export const CARD_VALUES = [2000, 5000, 10000, 20000, 50000, 100000];
-export const HOLD_MS = 30 * 60 * 1000;
+export const HOLD_MS = 60 * 60 * 1000;
 export const SPIN_MS = 10000;
 export const REVEAL_HOLD_MS = 10000;
 export const DRAW_HOUR_BOGOTA = 21;

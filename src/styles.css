@@ -678,7 +678,7 @@
     color:var(--gold-bright); background:none; border:none; font:inherit; padding:0;
     text-decoration:underline; text-underline-offset:3px;
   }
-  body.admin-entry #authForgotWrap{display:none !important;}
+  body.admin-entry .auth-check:has(#authRemember){display:none !important;}
   .auth-card label{display:block; font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); margin-top:10px;}
   .auth-card .input-field{margin:6px 0 0;}
   .auth-check{

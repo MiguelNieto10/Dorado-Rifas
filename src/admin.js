@@ -434,10 +434,6 @@ export function bindAdminFilters(getCardsCache) {
       refreshAdminViews(getCardsCache());
     });
   });
-  const reload = document.getElementById("adminReload");
-  if (reload) {
-    reload.addEventListener("click", () => refreshAdminViews(getCardsCache()));
-  }
   const usersEl = document.getElementById("adminUserList");
   if (usersEl) {
     usersEl.addEventListener("click", async (e) => {

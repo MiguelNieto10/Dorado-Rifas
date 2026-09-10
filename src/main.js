@@ -42,7 +42,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   const DEMO_SPEED = true;
   const SPIN_MS = 10000; // 10 segundos: el temporizador cuenta 10, 9, 8… hasta 0
   const REVEAL_HOLD_MS = 10000; // ganador visible 10 s, sin cuenta en pantalla, luego se reabre
-  const HOLD_MS = 30 * 60 * 1000; // sin comprobante, el número se libera
+  const HOLD_MS = 60 * 60 * 1000; // 1 hora para pagar y enviar el comprobante
   const DRAW_HOUR_BOGOTA = 21;
 
   const PROFILE = { name: 'Jugador', city: 'Bogotá' };
@@ -291,6 +291,34 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     });
   }
 
+  function reloadBoardsFromDb(){
+    if(!usingDb || !db){
+      renderAll();
+      toast('Tableros actualizados.');
+      return;
+    }
+    toast('Actualizando…');
+    Promise.all(CARD_VALUES.map((value)=>
+      db.doc('cards/'+value).get().then((snap)=>{
+        if(snap.exists){
+          cardsCache[value] = JSON.parse(JSON.stringify(snap.data()));
+          if(!cardsCache[value].numbers) cardsCache[value].numbers = {};
+          if(cardsCache[value].status !== 'drawing' && cardsCache[value].status !== 'revealed'){
+            cardsCache[value].status = 'open';
+          }
+        } else {
+          cardsCache[value] = emptyLiveBoard(value, []);
+        }
+        renderLobbyCard(value);
+        if(openCardValue === value) renderCardDetail(value);
+      }).catch(()=>{})
+    )).then(()=>{
+      renderAdminLiveLists();
+      if(isAdmin) refreshAdminViews(cardsCache);
+      toast('Tableros actualizados.');
+    });
+  }
+
   function seedLocalIfEmpty(){
     CARD_VALUES.forEach((value)=>{
       if(!cardsCache[value]) cardsCache[value] = emptyLiveBoard(value, []);
@@ -318,12 +346,9 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     if(openCardValue === value) renderCardDetail(value);
     renderAdminLiveLists();
     if(!usingDb) return;
-    const fields = { sold: card.sold, boardGen: BOARD_LIVE_GEN };
-    keys.forEach((n)=>{
-      fields['numbers.' + n] = card.numbers[n] || null;
-    });
-    db.doc('cards/'+value).patch(fields).catch((err)=>{
-      db.doc('cards/'+value).set(cardToDb(card)).catch((e)=>console.error(e));
+    db.doc('cards/'+value).set(cardToDb(card)).catch((e)=>{
+      console.error(e);
+      toast('No se pudo reservar el número. Intenta de nuevo.');
     });
   }
 
@@ -408,7 +433,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         if(!slot) continue;
         const held = isHeld(slot);
         const paid = isPaid(slot);
-        const estado = held ? 'Reservado 30 min' : (paid ? 'Verde · asegurado' : 'Pendiente');
+        const estado = held ? 'Reservado 1 h' : (paid ? 'Verde · asegurado' : 'Pendiente');
         const cls = held ? 'held' : (paid ? 'green' : '');
         const who = slot.fullName || slot.owner || '—';
         const user = slot.owner && slot.owner !== who ? ' · @' + slot.owner : '';
@@ -497,7 +522,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       '</div>' +
       '<div class="progress-track"><div class="progress-fill" style="width:' + card.sold + '%"></div></div>' +
       '<div class="progress-meta"><span>Números vendidos</span><span class="mono">' + card.sold + '/100</span></div>' +
-      (heldCount ? '<div class="progress-meta"><span>Reservados (30 min)</span><span class="mono">' + heldCount + '</span></div>' : '') +
+      (heldCount ? '<div class="progress-meta"><span>Reservados (1 h)</span><span class="mono">' + heldCount + '</span></div>' : '') +
       '<div class="pot-line"><span class="k">Premio actual</span><span class="v">' + fmt(pot) + '</span></div>' +
       '<button class="btn btn-gold btn-block" data-open="' + value + '">Ver tablero</button>';
     // El clic en "Ver cartón" lo maneja el oyente central de la
@@ -533,7 +558,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         dot.className = 'owner-dot';
         dot.textContent = (owner.owner === PROFILE.name || owner.owner === 'Tú') ? 'Tú' : (owner.owner || '').split(' ')[0];
         cell.appendChild(dot);
-        cell.title = 'Reservado 30 min · envía el comprobante a un administrador';
+        cell.title = 'Reservado 1 hora · envía el comprobante a un administrador';
         if(isAdmin) cell.title += ' · clic para asegurar (verde)';
       } else if(owner){
         cell.className = 'num-cell taken' + ((owner.owner === PROFILE.name || owner.owner === 'Tú') ? ' taken-user' : '');
@@ -1175,6 +1200,10 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       if(navBtn){ showView(navBtn.dataset.nav); return; }
 
       if(t.closest('#logoutBtn')){ signOutSession(); return; }
+      if(t.closest('#adminReload')){
+        reloadBoardsFromDb();
+        return;
+      }
       if(t.closest('#walletChip')){ showView('wallet'); return; }
       if(t.closest('#backBtn')){ showView('lobby'); return; }
       if(t.closest('#howBtn2') || t.closest('#demoInfoBtn')){ openModal('modalHow'); return; }

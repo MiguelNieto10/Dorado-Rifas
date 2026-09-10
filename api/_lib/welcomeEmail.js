@@ -36,7 +36,7 @@ export function welcomeText(username) {
     "",
     "2. Marcas uno o varios números del 00 al 99 y pagas. Cada número de ese tablero vale el precio del tablero.",
     "",
-    "3. Me envías el comprobante a un administrador, en el grupo de WhatsApp. En el mismo mensaje informa tu nombre completo, en qué tablero estás jugando y el número o números que elegiste. Si no llega el comprobante, ese número se libera a los 30 minutos y otra persona puede tomarlo. Cuando el administrador confirma, el número pasa a verde y queda asegurado: ya no se suelta y sí entra al sorteo.",
+    "3. Me envías el comprobante a un administrador, en el grupo de WhatsApp. En el mismo mensaje informa tu nombre completo, en qué tablero estás jugando y el número o números que elegiste. Si no llega el comprobante, ese número se libera a la 1 hora y otra persona puede tomarlo. Cuando el administrador confirma, el número pasa a verde y queda asegurado: ya no se suelta y sí entra al sorteo.",
     "",
     "4. En el sorteo solo participan los números verdes y pagos. El 50% de lo recaudado en el tablero que elegiste jugar, según los números vendidos, puede ser tuyo. Si tu número no está en verde, no puedes ganar ese sorteo.",
     "",
@@ -79,7 +79,7 @@ export function welcomeHtml(username) {
               <p style="margin:22px 0 12px;font-family:Jost,Segoe UI,sans-serif;letter-spacing:0.14em;font-size:11px;color:#c9a24b;text-transform:uppercase;">Cómo se juega, paso a paso</p>
               ${ruleBlock("1", "Eliges un tablero. Hay seis: $2.000, $5.000, $10.000, $20.000, $50.000 y $100.000 por número.")}
               ${ruleBlock("2", "Marcas uno o varios números del 00 al 99 y pagas. Cada número de ese tablero vale el precio del tablero.")}
-              ${ruleBlock("3", "Me envías el comprobante a un administrador, en el grupo de WhatsApp. En el mismo mensaje informa tu nombre completo, en qué tablero estás jugando y el número o números que elegiste. Si no llega el comprobante, ese número se libera a los 30 minutos y otra persona puede tomarlo. Cuando el administrador confirma, el número pasa a verde y queda asegurado: ya no se suelta y sí entra al sorteo.")}
+              ${ruleBlock("3", "Me envías el comprobante a un administrador, en el grupo de WhatsApp. En el mismo mensaje informa tu nombre completo, en qué tablero estás jugando y el número o números que elegiste. Si no llega el comprobante, ese número se libera a la 1 hora y otra persona puede tomarlo. Cuando el administrador confirma, el número pasa a verde y queda asegurado: ya no se suelta y sí entra al sorteo.")}
               ${ruleBlock("4", "En el sorteo solo participan los números verdes y pagos. El 50% de lo recaudado en el tablero que elegiste jugar, según los números vendidos, puede ser tuyo. Si tu número no está en verde, no puedes ganar ese sorteo.")}
               ${ruleBlock("5", "El sorteo es todos los días, de lunes a domingo, a las 9:00 p. m., hora de Bogotá. Si tienes un número pago (verde) en ese tablero, ves la cuenta 10, 9, 8… hasta 0, y después el ganador: el número, el nombre, la ciudad y el premio.")}
               ${ruleBlock("6", "A los 10 segundos el tablero se abre otra vez, con los números disponibles. Si ganas, el administrador te envía el premio a tu Nequi.")}

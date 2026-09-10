@@ -204,6 +204,9 @@ export function runAuthGate() {
 
     const auth = getAuth(app);
     const firestore = getFirestore(app);
+    if (isAdminEntry()) {
+      setPersistence(auth, browserLocalPersistence).catch(() => {});
+    }
     let finishing = false;
 
     async function finish(user, profile) {
@@ -328,12 +331,16 @@ export function runAuthGate() {
         return;
       }
       sessionUser = user;
-      sessionProfile = await loadProfile(user);
+      try {
+        sessionProfile = await loadProfile(user);
+      } catch {
+        sessionProfile = { username: user.displayName || "", phone: "" };
+      }
       if (isAdminEntry() && !isAdminAccount(sessionProfile, sessionProfile.username || user.displayName)) {
-        try { await signOut(auth); } catch { /* ignore */ }
         sessionUser = null;
         sessionProfile = null;
         finishing = false;
+        initialAuthHandled = false;
         showStep("form");
         if (gate) gate.hidden = false;
         setAuthMode("admin");
@@ -407,7 +414,7 @@ export function runAuthGate() {
       const emailInput = (document.getElementById("authEmail") && document.getElementById("authEmail").value.trim()) || "";
       const fullName = (document.getElementById("authFullName") && document.getElementById("authFullName").value.trim()) || "";
       const phone = digitsPhone(document.getElementById("authPhone").value);
-      const remember = document.getElementById("authRemember").checked;
+      const remember = adminAttempt || isAdminEntry() || document.getElementById("authRemember").checked;
       const mode = authMode();
       const isRegister = mode === "register";
       const adminAttempt = mode === "admin";

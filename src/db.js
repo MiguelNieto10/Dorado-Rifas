@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
+import { getFirestore, doc, onSnapshot, setDoc, updateDoc, getDoc } from "firebase/firestore";
 
 function cleanForDb(data) {
   return JSON.parse(JSON.stringify(data));
@@ -57,6 +57,12 @@ export function connectFirestore() {
             },
             onError || (() => {}),
           );
+        },
+        get() {
+          return getDoc(ref).then((snap) => ({
+            exists: snap.exists(),
+            data: () => snap.data(),
+          }));
         },
         set(data) {
           return setDoc(ref, cleanForDb(data));
