@@ -1,5 +1,9 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, doc, onSnapshot, setDoc } from "firebase/firestore";
+import { getFirestore, doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
+
+function cleanForDb(data) {
+  return JSON.parse(JSON.stringify(data));
+}
 
 export function getFirebaseConfig() {
   return {
@@ -55,7 +59,10 @@ export function connectFirestore() {
           );
         },
         set(data) {
-          return setDoc(ref, data);
+          return setDoc(ref, cleanForDb(data));
+        },
+        patch(fields) {
+          return updateDoc(ref, cleanForDb(fields));
         },
       };
     },

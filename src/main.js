@@ -275,13 +275,9 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
           // editable, nunca sobre el objeto que entrega la base de
           // datos directamente.
           cardsCache[value] = JSON.parse(JSON.stringify(snap.data()));
+          if(!cardsCache[value].numbers) cardsCache[value].numbers = {};
           if(cardsCache[value].status !== 'drawing' && cardsCache[value].status !== 'revealed'){
             cardsCache[value].status = 'open';
-          }
-          if(cardsCache[value].boardGen !== BOARD_LIVE_GEN && cardsCache[value].status === 'open'){
-            const cleared = emptyLiveBoard(value, cardsCache[value].history);
-            cardsCache[value] = cleared;
-            db.doc('cards/'+value).set(cleared).catch(()=>{});
           }
         } else {
           const fresh = emptyLiveBoard(value, []);
@@ -315,9 +311,38 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     if(currentView === 'wallet') renderWalletView();
   }
 
+  function cardToDb(card){
+    const numbers = {};
+    Object.keys(card.numbers || {}).forEach((n)=>{
+      if(card.numbers[n]) numbers[n] = card.numbers[n];
+    });
+    return Object.assign({}, card, { numbers, boardGen: BOARD_LIVE_GEN });
+  }
+
+  function persistSlots(value, keys){
+    const card = cardsCache[value];
+    if(!card) return;
+    renderLobbyCard(value);
+    if(openCardValue === value) renderCardDetail(value);
+    renderAdminLiveLists();
+    if(!usingDb) return;
+    const fields = { sold: card.sold, boardGen: BOARD_LIVE_GEN };
+    keys.forEach((n)=>{
+      fields['numbers.' + n] = card.numbers[n] || null;
+    });
+    db.doc('cards/'+value).patch(fields).catch((err)=>{
+      console.error('No se actualizó el tablero', value, err);
+      db.doc('cards/'+value).set(cardToDb(card)).catch((e)=>console.error(e));
+    });
+  }
+
   function saveCard(value){
     const card = cardsCache[value];
-    if(usingDb){ db.doc('cards/'+value).set(card).catch(()=>{}); }
+    if(usingDb){
+      db.doc('cards/'+value).set(cardToDb(card)).catch((err)=>{
+        console.error('No se guardó el tablero', value, err);
+      });
+    }
     renderLobbyCard(value);
     if(openCardValue === value) renderCardDetail(value);
     renderAdminLiveLists();
@@ -362,7 +387,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     slot.confirmed = true;
     delete slot.heldUntil;
     recountSold(card);
-    saveCard(value);
+    persistSlots(value, [num]);
     toast('Número ' + num + ' del tablero ' + fmt(value) + ' asegurado en verde.');
     return true;
   }
@@ -415,7 +440,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       const body = rows.length
         ? '<div class="admin-live-table-wrap"><table class="admin-live-table"><thead><tr><th>Nº</th><th>Nombre</th><th>Celular</th><th>Estado</th><th></th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>'
         : '<p class="admin-live-empty">Nadie ha tomado números en este tablero.</p>';
-      const openAttr = openIds.has(String(value)) ? ' open' : '';
+      const openAttr = (openIds.has(String(value)) || heldCount > 0) ? ' open' : '';
       return (
         '<details class="admin-live-board" data-board="' + value + '"' + openAttr + '>' +
           '<summary>Tablero ' + fmt(value) + ' <span>Reservados ' + heldCount + ' · Verdes ' + greenCount + '</span></summary>' +
@@ -472,6 +497,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       el.id = 'ticket-'+value;
       document.getElementById('cardsGrid').appendChild(el);
     }
+    const heldCount = Object.keys(card.numbers || {}).filter((n)=>isHeld(card.numbers[n])).length;
     const pot = card.sold * value * 0.5;
     el.innerHTML =
       '<div class="ticket-top">' +
@@ -480,6 +506,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       '</div>' +
       '<div class="progress-track"><div class="progress-fill" style="width:' + card.sold + '%"></div></div>' +
       '<div class="progress-meta"><span>Números vendidos</span><span class="mono">' + card.sold + '/100</span></div>' +
+      (heldCount ? '<div class="progress-meta"><span>Reservados (15 min)</span><span class="mono">' + heldCount + '</span></div>' : '') +
       '<div class="pot-line"><span class="k">Premio actual</span><span class="v">' + fmt(pot) + '</span></div>' +
       '<button class="btn btn-gold btn-block" data-open="' + value + '">Ver tablero</button>';
     // El clic en "Ver cartón" lo maneja el oyente central de la
@@ -609,7 +636,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       }).catch(()=>{});
     }
 
-    saveCard(value);
+    persistSlots(value, nums);
     const sorted = nums.slice().sort();
     document.getElementById('nequiPayNums').textContent = sorted.join(', ');
     document.getElementById('nequiPayAmount').textContent = fmt(total);
