@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // MODO DEMO / aprendizaje: lectura y escritura abiertas.
+    // Cuando la app tenga usuarios reales, hay que restringir esto
+    // (por ejemplo: cada persona solo edita su propia billetera).
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dorado Rifas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap">
+<link rel="stylesheet" href="/src/styles.css">
+</head>
+<body>
+<div class="demo-bar">
+  🔒 MODO DEMO — dinero simulado, sin pagos ni retiros reales
+  <button id="demoInfoBtn" type="button">Ver detalle</button>
+</div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">Dorado</span>
+    <span class="brand-sub">RIFAS &amp; SORTEOS</span>
+  </div>
+  <nav class="nav">
+    <button type="button" data-nav="lobby" class="active">Cartones</button>
+    <button type="button" data-nav="wallet">Billetera</button>
+    <button type="button" data-nav="historial">Ganadores</button>
+    <button type="button" id="howBtn2">Cómo funciona</button>
+  </nav>
+  <button class="wallet-chip" id="walletChip" type="button" title="Ir a mi billetera">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-4M3 7l7-4 4 4"/><circle cx="17" cy="14" r="1.4" fill="currentColor" stroke="none"/></svg>
+    <span><span class="lbl">Saldo</span><span class="amt" id="walletBalance">$0</span></span>
+  </button>
+</header>
+
+<main>
+  <!-- ===================== VISTA: LOBBY ===================== -->
+  <section id="view-lobby" class="view">
+    <div class="hero">
+      <h1>La suerte, <em>con estilo.</em></h1>
+      <p>Elige tu cartón, marca tus números y juega. Cuando el cartón se llena al 100%, el sorteo se activa solo — el premio es la mitad de lo recaudado y cae directo a la billetera del ganador.</p>
+      <div class="stat-row">
+        <div class="stat"><span class="v mono" id="statActive">—</span><span class="k">Cartones en juego</span></div>
+        <div class="stat"><span class="v mono" id="statPot">—</span><span class="k">Premio más alto ahora</span></div>
+        <div class="stat"><span class="v mono">50%</span><span class="k">Del recaudo, al ganador</span></div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:4px;">
+        <button class="btn btn-ghost btn-sm" id="joinWhatsappBtn" type="button">💬 Unirme al grupo de avisos (WhatsApp)</button>
+        <span style="font-size:0.74rem; color:var(--text-faint);">Avisos de inicio de sorteo y confirmación pública de cada ganador.</span>
+      </div>
+    </div>
+    <span class="section-label">Elige tu cartón</span>
+    <div class="cards-grid" id="cardsGrid"></div>
+  </section>
+
+  <!-- ===================== VISTA: CARTÓN ===================== -->
+  <section id="view-card" class="view" hidden>
+    <button class="back-link" id="backBtn" type="button">← Volver a los cartones</button>
+    <div class="card-head">
+      <div>
+        <h2 id="cdTitle" class="mono">$0</h2>
+        <div class="meta-row">
+          <div class="stat"><span class="v mono" id="cdSold">0/100</span><span class="k">Números vendidos</span></div>
+          <div class="stat"><span class="v mono" id="cdPot">$0</span><span class="k">Premio actual (50%)</span></div>
+          <div class="stat"><span class="v mono" id="cdPer">$0</span><span class="k">Por número</span></div>
+        </div>
+      </div>
+      <span class="pill" id="cdStatus">ABIERTO</span>
+    </div>
+
+    <div class="grid-legend">
+      <span><i class="lg-swatch" style="background:var(--surface-2); border:1px solid var(--border);"></i>Disponible</span>
+      <span><i class="lg-swatch" style="background:linear-gradient(180deg,var(--gold-bright),var(--gold));"></i>Tu selección</span>
+      <span><i class="lg-swatch" style="background:var(--surface-3); border:1px solid var(--garnet);"></i>Ocupado</span>
+      <span><i class="lg-swatch" style="background:rgba(58,164,126,0.14); border:1px solid var(--emerald-bright);"></i>Tuyo (ya pagado)</span>
+    </div>
+
+    <div class="num-grid" id="numGrid"></div>
+
+    <div class="selection-bar" id="selectionBar" hidden>
+      <div class="sel-info">
+        <div><span class="k">Números elegidos</span><span class="v" id="selCount">0</span></div>
+        <div><span class="k">Total a pagar</span><span class="v" id="selTotal">$0</span></div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn btn-outline btn-sm" id="clearSelBtn" type="button">Limpiar</button>
+        <button class="btn btn-gold" id="payBtn" type="button">Pagar</button>
+      </div>
+    </div>
+
+    <div class="demo-tool">
+      <div class="lbl"><b>Herramienta de prueba</b>Simula jugadores reales (con nombre y ciudad) para completar el cartón al 100% y disparar el proceso completo del sorteo: alarma, cuenta regresiva, ruleta y ganador.</div>
+      <div class="controls">
+        <button class="btn btn-outline btn-sm" data-sim="10" type="button">+10 jugadores</button>
+        <button class="btn btn-outline btn-sm" data-sim="30" type="button">+30 jugadores</button>
+        <button class="btn btn-gold btn-sm" data-sim="all" type="button">▶ Completar cartón y sortear ahora</button>
+        <button class="btn btn-outline btn-sm" id="resetCardBtn" type="button" title="Úsalo solo si el cartón queda atascado en una prueba">↺ Reiniciar este cartón</button>
+      </div>
+    </div>
+
+    <div id="historySection" hidden>
+      <span class="section-label" style="margin-top:24px;">Últimos sorteos de este cartón</span>
+      <div class="history-strip" id="historyStrip"></div>
+    </div>
+  </section>
+
+  <!-- ===================== VISTA: BILLETERA ===================== -->
+  <section id="view-wallet" class="view" hidden>
+    <div class="wallet-hero">
+      <div>
+        <div class="bal-k">Saldo disponible</div>
+        <div class="bal-v" id="wvBalance">$0</div>
+      </div>
+      <div class="wallet-actions">
+        <button class="btn btn-ghost" id="depositBtn" type="button">Recargar saldo</button>
+        <button class="btn btn-gold" id="withdrawBtn" type="button">Retirar a Nequi</button>
+      </div>
+    </div>
+    <span class="section-label">Actividad reciente</span>
+    <div class="activity-list" id="activityList"></div>
+  </section>
+
+  <!-- ===================== VISTA: HISTORIAL DE GANADORES ===================== -->
+  <section id="view-historial" class="view" hidden>
+    <div class="hero" style="padding-top:24px; padding-bottom:8px;">
+      <h1 style="font-size:clamp(1.6rem,3.4vw,2.2rem);">Historial de <em>ganadores.</em></h1>
+      <p>Todos los sorteos realizados en Dorado, con fecha, hora, nombre y ciudad del ganador — para que quede constancia de que los premios sí se entregan.</p>
+    </div>
+    <div id="historialList"></div>
+  </section>
+</main>
+
+<footer>
+  <p class="legal-note">
+    <strong>Dorado</strong> es un prototipo de demostración construido para practicar programación de apps.
+    Todo el dinero, los pagos con ePayco y los retiros a Nequi son <strong>simulados</strong>: no se procesa
+    ningún cobro ni transferencia real. Operar rifas o sorteos con dinero real en Colombia es una actividad
+    de suerte y azar regulada por Coljuegos, y requiere autorización antes de lanzarse al público.
+  </p>
+</footer>
+
+<!-- ===================== MODALES ===================== -->
+<div class="modal-overlay" id="modalOverlay" hidden>
+  <div class="modal" id="modalPayment" hidden>
+    <h3>Confirmar pago</h3>
+    <p class="sub" id="payDesc">—</p>
+    <div class="modal-row"><span class="k">Números</span><span class="v" id="payNums">—</span></div>
+    <div class="modal-row"><span class="k">Total</span><span class="v" id="payTotal">$0</span></div>
+    <button class="pay-option" id="payEpayco" type="button">
+      <span><b>💳 Pagar con ePayco</b><span>Tarjeta guardada · pago simulado</span></span>
+      <span>→</span>
+    </button>
+    <button class="pay-option" id="payWallet" type="button">
+      <span><b>👛 Saldo de mi billetera</b><span id="payWalletSub">Disponible: $0</span></span>
+      <span>→</span>
+    </button>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-block" id="payCancel" type="button">Cancelar</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modalDeposit" hidden>
+    <h3>Recargar saldo</h3>
+    <p class="sub">Simula un pago con ePayco para agregar saldo a tu billetera.</p>
+    <div class="amount-chips">
+      <button class="chip-btn" data-amt="20000" type="button">+$20.000</button>
+      <button class="chip-btn" data-amt="50000" type="button">+$50.000</button>
+      <button class="chip-btn" data-amt="100000" type="button">+$100.000</button>
+    </div>
+    <input class="input-field" id="depositInput" type="number" min="1000" step="1000" placeholder="Monto en pesos">
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-block" id="depositCancel" type="button">Cancelar</button>
+      <button class="btn btn-gold btn-block" id="depositConfirm" type="button">Recargar (simulado)</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modalWithdraw" hidden>
+    <h3>Retirar a Nequi</h3>
+    <p class="sub" id="withdrawSub">Disponible: $0</p>
+    <input class="input-field" id="withdrawInput" type="number" min="1000" step="1000" placeholder="Monto a retirar">
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-block" id="withdrawCancel" type="button">Cancelar</button>
+      <button class="btn btn-gold btn-block" id="withdrawConfirm" type="button">Retirar (simulado)</button>
+    </div>
+  </div>
+
+  <div class="modal" id="modalHow" hidden style="max-width:480px;">
+    <h3>Cómo funciona Dorado</h3>
+    <div class="how-list">
+      <p><span class="hi">01</span>Elige un cartón según el valor que quieras jugar.</p>
+      <p><span class="hi">02</span>Selecciona uno o varios números del 00 al 99 y paga.</p>
+      <p><span class="hi">03</span>Cuando el cartón llega al 100%, se avisa 5 minutos antes y comienza el sorteo.</p>
+      <p><span class="hi">04</span>El premio es el 50% de lo recaudado y se acredita solo a la billetera del ganador.</p>
+      <p><span class="hi">05</span>Puedes retirar tu saldo a Nequi o dejarlo en la app para jugar otro cartón.</p>
+      <p><span class="hi">06</span>El cartón se reabre automáticamente al público en cuanto termina el sorteo.</p>
+    </div>
+    <div class="legal-note">
+      Este prototipo usa dinero simulado con fines educativos y de diseño. Para operar con dinero real en
+      Colombia se requiere autorización de Coljuegos (entidad reguladora de juegos de suerte y azar).
+    </div>
+    <div class="modal-actions"><button class="btn btn-gold btn-block" id="howClose" type="button">Entendido</button></div>
+  </div>
+</div>
+
+<!-- ===================== OVERLAY DE SORTEO ===================== -->
+<div class="draw-overlay" id="drawOverlay" hidden>
+  <div class="draw-stage" id="drawStage"></div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
