@@ -1,4 +1,5 @@
 import { connectFirestore } from "./db.js";
+import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
 
 /* ================================================================
    DORADO — RIFAS & SORTEOS (prototipo con dinero simulado)
@@ -39,14 +40,7 @@ import { connectFirestore } from "./db.js";
   const SPIN_MS = 10000; // 10 segundos: el temporizador cuenta 10, 9, 8… hasta 0
   const REVEAL_HOLD_MS = 7000; // cuánto se queda visible el resultado antes de reabrir el cartón
 
-  const PROFILE = { name: 'Miguel', city: 'Bogotá' };
-
-  // 👉 Reemplaza este link por el link real de invitación a tu grupo de
-  // WhatsApp cuando lo crees (dentro del grupo: Datos del grupo → Invitar
-  // por link). Ese botón sirve para que cada usuario se una por su cuenta
-  // — WhatsApp no permite que una página web agregue gente al grupo
-  // automáticamente, así que el usuario siempre tiene que dar clic él mismo.
-  const WHATSAPP_GROUP_LINK = 'https://chat.whatsapp.com/TU-LINK-AQUI';
+  const PROFILE = { name: 'Jugador', city: 'Bogotá' };
 
   const BOT_NAMES = ['Camila Rojas','Santiago Gómez','Valentina Torres','Andrés Muñoz','Isabella Ramírez',
     'Juan Pablo Castro','Mariana Duarte','Felipe Herrera','Laura Cárdenas','Nicolás Peña','Daniela Ríos',
@@ -82,7 +76,7 @@ import { connectFirestore } from "./db.js";
     const indices = Array.from({length:100}, (_,i)=>pad2(i)).sort(()=>Math.random()-0.5);
     let filled = 0;
     (userNumbers||[]).forEach(n=>{
-      card.numbers[n] = { owner:'Tú', city:PROFILE.city, isUser:true };
+      card.numbers[n] = randomBot();
       filled++;
     });
     for(const n of indices){
@@ -99,7 +93,7 @@ import { connectFirestore } from "./db.js";
     return {
       balance: 45000,
       activity: [
-        { id:'seed1', kind:'recarga', desc:'Recarga inicial de saldo (simulada)', amount:45000, ts:Date.now() - 1000*60*60*30 }
+        { id:'seed1', kind:'recarga', desc:'Recarga inicial de saldo', amount:45000, ts:Date.now() - 1000*60*60*30 }
       ]
     };
   }
@@ -111,6 +105,7 @@ import { connectFirestore } from "./db.js";
 
   let db = null; // se llena si la capacidad "db" está disponible
   let usingDb = false;
+  let currentUid = null;
   const cardsCache = {};
   let wallet = seedWallet();
   let currentView = 'lobby';
@@ -145,6 +140,10 @@ import { connectFirestore } from "./db.js";
   // Si no hay claves en .env.local, db queda null y la app
   // sigue en memoria local (se reinicia al recargar).
 
+  function walletDocPath(){
+    return currentUid ? ('wallets/' + currentUid) : 'state/wallet';
+  }
+
   async function initDb(){
     try{
       db = connectFirestore();
@@ -156,7 +155,7 @@ import { connectFirestore } from "./db.js";
     }
     usingDb = true;
 
-    db.doc('state/wallet').onSnapshot((snap)=>{
+    db.doc(walletDocPath()).onSnapshot((snap)=>{
       if(snap.exists){
         // CORRECCIÓN CLAVE: lo que entrega la base de datos en tiempo
         // real viene "congelado" (de solo lectura) para que nadie lo
@@ -168,7 +167,7 @@ import { connectFirestore } from "./db.js";
         wallet = JSON.parse(JSON.stringify(snap.data()));
       } else {
         wallet = seedWallet();
-        db.doc('state/wallet').set(wallet).catch(()=>{});
+        db.doc(walletDocPath()).set(wallet).catch(()=>{});
       }
       renderWalletChip();
       if(currentView === 'wallet') renderWalletView();
@@ -237,7 +236,7 @@ import { connectFirestore } from "./db.js";
   }
 
   function saveWallet(){
-    if(usingDb){ db.doc('state/wallet').set(wallet).catch(()=>{}); }
+    if(usingDb){ db.doc(walletDocPath()).set(wallet).catch(()=>{}); }
     renderWalletChip();
     if(currentView === 'wallet') renderWalletView();
   }
@@ -352,10 +351,10 @@ import { connectFirestore } from "./db.js";
       cell.textContent = n;
       cell.dataset.num = n; // el oyente central de clics usa este dato para saber qué número tocaron
       if(owner){
-        cell.className = 'num-cell taken' + (owner.isUser ? ' taken-user' : '');
+        cell.className = 'num-cell taken' + ((owner.owner === PROFILE.name || owner.owner === 'Tú') ? ' taken-user' : '');
         const dot = document.createElement('span');
         dot.className = 'owner-dot';
-        dot.textContent = owner.isUser ? 'Tú' : owner.owner.split(' ')[0];
+        dot.textContent = (owner.owner === PROFILE.name || owner.owner === 'Tú') ? 'Tú' : owner.owner.split(' ')[0];
         cell.appendChild(dot);
         cell.title = owner.owner + ' · ' + owner.city;
       } else if(card.status === 'open'){
@@ -418,11 +417,11 @@ import { connectFirestore } from "./db.js";
       wallet.balance -= total;
       addActivity('compra', 'Cartón ' + fmt(value) + ' · números ' + nums.join(', ') + ' (saldo billetera)', -total);
     } else {
-      addActivity('compra', 'Cartón ' + fmt(value) + ' · números ' + nums.join(', ') + ' (ePayco simulado)', 0);
+      addActivity('compra', 'Cartón ' + fmt(value) + ' · números ' + nums.join(', '), 0);
     }
     saveWallet();
 
-    nums.forEach(n=>{ card.numbers[n] = { owner:'Tú', city:PROFILE.city, isUser:true }; });
+    nums.forEach(n=>{ card.numbers[n] = { owner: PROFILE.name, city: PROFILE.city, isUser:true }; });
     card.sold += nums.length;
     selectedNumbers.clear();
 
@@ -571,7 +570,7 @@ import { connectFirestore } from "./db.js";
     const winnerSlot = card.numbers[card.pendingWinner];
     const value = card.value;
     const prize = value * 50; // 50% de (100 números * valor)
-    const wonByUser = !!(winnerSlot && winnerSlot.isUser);
+    const wonByUser = !!(winnerSlot && (winnerSlot.owner === PROFILE.name || winnerSlot.owner === 'Tú'));
     const winnerName = winnerSlot ? winnerSlot.owner : 'Sin comprador';
     const winnerCity = winnerSlot ? winnerSlot.city : '—';
 
@@ -722,20 +721,20 @@ import { connectFirestore } from "./db.js";
   function doDeposit(amount){
     if(!amount || amount <= 0) return;
     wallet.balance += amount;
-    addActivity('recarga', 'Recarga de saldo vía ePayco (simulado)', amount);
+    addActivity('recarga', 'Recarga de saldo', amount);
     saveWallet();
     closeModal();
-    toast('Se agregaron ' + fmt(amount) + ' a tu billetera (simulado)');
+    toast('Se agregaron ' + fmt(amount) + ' a tu billetera');
   }
 
   function doWithdraw(amount){
     if(!amount || amount <= 0) return;
     if(amount > wallet.balance){ toast('No puedes retirar más de tu saldo disponible'); return; }
     wallet.balance -= amount;
-    addActivity('retiro', 'Retiro a Nequi (simulado)', -amount);
+    addActivity('retiro', 'Retiro a Nequi', -amount);
     saveWallet();
     closeModal();
-    toast('✅ Simulado: ' + fmt(amount) + ' enviados a tu cuenta Nequi');
+    toast(fmt(amount) + ' enviados a tu cuenta Nequi');
   }
 
   // ---------- 12. MODALES Y TOAST (utilidades de interfaz) ----------
@@ -862,9 +861,12 @@ import { connectFirestore } from "./db.js";
   });
 
   // ---------- 14. ARRANQUE ----------
-  // Pintamos la app de inmediato con datos de ejemplo (para que no
-  // se vea vacía ni un instante) y, en paralelo, intentamos conectar
-  // con la base de datos para recordar tu progreso entre visitas.
-  seedLocalIfEmpty();
-  renderAll();
-  initDb();
+  // Primero la cuenta (nombre, clave, celular, WhatsApp). Después
+  // se pintan los cartones y se conecta Firestore.
+  runAuthGate().then((session)=>{
+    PROFILE.name = session.username || 'Jugador';
+    currentUid = session.uid;
+    seedLocalIfEmpty();
+    renderAll();
+    initDb();
+  });

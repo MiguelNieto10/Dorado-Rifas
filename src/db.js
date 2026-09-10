@@ -1,26 +1,8 @@
-/**
- * Adaptador de Firebase Firestore.
- *
- * La app original pedía la base de datos así:
- *   db = await window.claude.use('db')
- * y luego usaba:
- *   db.doc('cards/2000').onSnapshot(...)
- *   db.doc('cards/2000').set(card)
- *
- * Ese `window.claude` SOLO existe dentro de Claude. Aquí devolvemos
- * un objeto con la MISMA forma (doc / onSnapshot / set / exists / data),
- * para no tener que reescribir la lógica de cartones, sorteo ni billetera.
- *
- * Las claves VITE_FIREBASE_* son públicas a propósito: Firebase las
- * diseñó para el navegador. La seguridad real se pone en las reglas
- * de Firestore (archivo firestore.rules). Las llaves SECRETAS de
- * ePayco NO van aquí: van en api/ y en variables de entorno del servidor.
- */
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, doc, onSnapshot, setDoc } from "firebase/firestore";
 
-export function connectFirestore() {
-  const config = {
+export function getFirebaseConfig() {
+  return {
     apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
     authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
     projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -28,12 +10,17 @@ export function connectFirestore() {
     messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
     appId: import.meta.env.VITE_FIREBASE_APP_ID,
   };
+}
 
-  if (!config.apiKey || !config.projectId) {
-    return null;
-  }
+export function getFirebaseApp() {
+  const config = getFirebaseConfig();
+  if (!config.apiKey || !config.projectId) return null;
+  return getApps().length ? getApps()[0] : initializeApp(config);
+}
 
-  const app = initializeApp(config);
+export function connectFirestore() {
+  const app = getFirebaseApp();
+  if (!app) return null;
   const firestore = getFirestore(app);
 
   return {

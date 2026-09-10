@@ -62,8 +62,8 @@
   a{color:var(--gold-bright);}
 
   /* ============================================================
-     BARRA DE MODO DEMO
-     ("banner" = franja fija informativa en la parte de arriba)
+     BARRA SUPERIOR
+     Franja fija. El botón abre “Cómo funciona”.
      ============================================================ */
   .demo-bar{
     background:linear-gradient(90deg, var(--gold-dim), var(--gold), var(--gold-dim));
@@ -79,8 +79,9 @@
     display:flex; align-items:center; justify-content:center; gap:8px;
   }
   .demo-bar button{
-    background:rgba(0,0,0,0.15); border:1px solid rgba(0,0,0,0.25); color:#141008;
-    border-radius:100px; padding:1px 10px; font-size:0.68rem; font-weight:700; letter-spacing:0.04em;
+    background:none; border:none; color:#141008;
+    font-weight:700; font-size:0.72rem; letter-spacing:0.14em;
+    padding:0;
   }
 
   /* ============================================================
@@ -378,6 +379,48 @@
 
   .confetti-piece{position:absolute; top:-10px; width:7px; height:12px; opacity:0.9; animation:confetti-fall 2.6s linear forwards; border-radius:1px;}
   @keyframes confetti-fall{ to{ transform:translateY(340px) rotate(340deg); opacity:0; } }
+
+  /* ============================================================
+     PUERTA DE ENTRADA (cuenta + WhatsApp)
+     ============================================================ */
+  .auth-gate{
+    position:fixed; inset:0; z-index:120;
+    background:
+      radial-gradient(ellipse 900px 500px at 15% -10%, rgba(201,162,75,0.10), transparent 60%),
+      radial-gradient(ellipse 700px 500px at 100% 0%, rgba(31,92,70,0.10), transparent 55%),
+      var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    padding:24px 16px;
+    overflow:auto;
+  }
+  .auth-gate[hidden]{display:none !important;}
+  .auth-card{
+    width:100%; max-width:420px;
+    background:linear-gradient(165deg, var(--surface-2), var(--surface));
+    border:1px solid var(--border); border-radius:var(--radius-l);
+    padding:28px 24px 26px; box-shadow:var(--shadow-pop);
+  }
+  .auth-brand{display:flex; flex-direction:column; margin-bottom:18px;}
+  .auth-card h2{font-size:1.7rem; margin-bottom:8px;}
+  .auth-lead{color:var(--text-dim); font-size:0.92rem; margin-bottom:18px;}
+  .auth-tabs{display:flex; gap:6px; margin-bottom:16px;}
+  .auth-tabs button{
+    flex:1; background:var(--surface-3); border:1px solid var(--border); color:var(--text-dim);
+    border-radius:100px; padding:8px 10px; font-size:0.82rem; font-weight:600;
+  }
+  .auth-tabs button.active{color:var(--gold-bright); background:var(--gold-wash); border-color:var(--gold-dim);}
+  .auth-card label{display:block; font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); margin-top:10px;}
+  .auth-card .input-field{margin:6px 0 0;}
+  .auth-check{
+    display:flex !important; align-items:center; gap:10px; margin:16px 0 8px;
+    text-transform:none !important; letter-spacing:0 !important; font-size:0.86rem !important; color:var(--text-dim) !important;
+  }
+  .auth-check input{width:18px; height:18px; accent-color:var(--gold);}
+  .auth-note{font-size:0.78rem; color:var(--text-faint); margin:0 0 16px;}
+  .auth-error{
+    background:rgba(193,74,95,0.16); border:1px solid rgba(193,74,95,0.4); color:var(--garnet-bright);
+    border-radius:var(--radius-s); padding:10px 12px; font-size:0.82rem; margin-bottom:14px;
+  }
 
   /* ============================================================
      TOAST

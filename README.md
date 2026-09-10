@@ -13,6 +13,10 @@ Una app de rifas/sorteos con cartones de 100 números (00-99), en 6 valores ($2.
 - La base de datos de Claude (`window.claude.use('db')`) se reemplazó por **Firebase Firestore**. Si no hay claves de Firebase en `.env.local`, la app sigue funcionando en memoria (cada recarga empieza de cero).
 - Hay una carpeta `api/` para código de servidor (llaves secretas de ePayco). Los pagos reales siguen desactivados.
 
+- Al abrir el link, la persona crea **nombre de usuario, clave, celular**, puede **recordar la clave** y, si el celular lo permite, **huella / Face ID**. Al final debe unirse al **grupo de WhatsApp** (los ganadores se publican ahí). WhatsApp no deja agregar gente solo: hay que pulsar el link.
+- El link del grupo está en `src/auth.js` (`WHATSAPP_GROUP_LINK`). Reemplázalo cuando tengas el grupo real.
+- En Firebase Console hay que activar **Authentication → Sign-in method → Correo/contraseña**. Sin eso, “Crear cuenta” falla.
+
 Copia de seguridad del archivo único original: `legacy/index.html`.
 
 ## Mapa de carpetas (palabras simples)
@@ -62,7 +66,7 @@ Sin esas claves, la app **no se rompe**: usa datos locales, como cuando abrías 
 
 1. **Cuenta de Firebase tuya** con las variables de `.env.local` rellenadas (arriba).
 2. **Dominio + hosting**: Vercel (el mismo tipo de despliegue que Camisetas/URO). Las variables de entorno se pegan en el panel de Vercel, no en el código.
-3. **Grupo de WhatsApp real**: reemplaza `WHATSAPP_GROUP_LINK` en `src/main.js`.
+3. **Grupo de WhatsApp real**: reemplaza `WHATSAPP_GROUP_LINK` en `src/auth.js`.
 4. **Pasarela de pago real**: cuenta de ePayco. Las llaves van en `EPAYCO_PUBLIC_KEY` / `EPAYCO_PRIVATE_KEY` (servidor). El esqueleto está en `api/crear-pago.js`. La app todavía cobra en simulado.
 5. **Diseño de custodia del dinero** y pagos de salida a Nequi.
 6. **Autorización de Coljuegos** antes de activar dinero real.
