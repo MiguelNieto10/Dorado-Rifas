@@ -47,20 +47,20 @@
         <button type="button" id="authModeLogin">Ya tengo cuenta</button>
       </div>
       <form id="authForm">
-        <label>Nombre de usuario
+        <label>Nombre de usuario *
           <input class="input-field" id="authUsername" name="username" autocomplete="username" required minlength="3" placeholder="ej. James_R">
         </label>
-        <label id="authFullNameWrap">Nombre completo
-          <input class="input-field" id="authFullName" name="name" autocomplete="name" placeholder="nombre y apellido">
+        <label id="authFullNameWrap">Nombre completo *
+          <input class="input-field" id="authFullName" name="name" autocomplete="name" required minlength="5" placeholder="nombre y apellido">
         </label>
-        <label id="authEmailWrap">Correo
-          <input class="input-field" id="authEmail" name="email" type="email" autocomplete="email" placeholder="tucorreo@gmail.com">
+        <label id="authEmailWrap">Correo *
+          <input class="input-field" id="authEmail" name="email" type="email" autocomplete="email" required placeholder="tucorreo@gmail.com">
         </label>
-        <label>Clave
+        <label>Clave *
           <input class="input-field" id="authPassword" name="password" type="password" autocomplete="current-password" required minlength="6" placeholder="mínimo 6 caracteres">
         </label>
-        <label id="authPhoneWrap">Número de celular
-          <input class="input-field" id="authPhone" name="tel" type="tel" inputmode="numeric" autocomplete="tel" placeholder="3001234567">
+        <label id="authPhoneWrap">Número de celular *
+          <input class="input-field" id="authPhone" name="tel" type="tel" inputmode="numeric" autocomplete="tel" required minlength="10" maxlength="12" placeholder="3001234567">
         </label>
         <label class="auth-check">
           <input type="checkbox" id="authRemember" checked>

@@ -373,6 +373,10 @@ export function runAuthGate() {
       const nameWrap = document.getElementById("authFullNameWrap");
       if (nameWrap) nameWrap.hidden = !isRegister;
       document.getElementById("authPhoneWrap").hidden = !isRegister;
+      ["authFullName", "authEmail", "authPhone"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.required = isRegister;
+      });
       const forgot = document.getElementById("authForgotWrap");
       if (forgot) forgot.hidden = mode !== "login";
       document.getElementById("authSubmit").textContent =
@@ -413,12 +417,24 @@ export function runAuthGate() {
         setAuthError("Ese usuario no está en la lista de administrador.");
         return;
       }
+      if (isRegister && !fullName) {
+        setAuthError("El nombre completo es obligatorio.");
+        return;
+      }
       if (isRegister && fullName.length < 5) {
         setAuthError("Escribe tu nombre completo (nombre y apellido).");
         return;
       }
+      if (isRegister && !emailInput) {
+        setAuthError("El correo es obligatorio.");
+        return;
+      }
       if (isRegister && !isValidEmail(emailInput)) {
         setAuthError("Escribe un correo válido. Ahí te llega el mensaje si olvidas la clave.");
+        return;
+      }
+      if (isRegister && !phone) {
+        setAuthError("El número de celular es obligatorio.");
         return;
       }
       if (isRegister && (phone.length < 10 || phone.length > 12)) {
