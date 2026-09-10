@@ -163,6 +163,18 @@
   .admin-open h3{font-size:1.35rem; margin-bottom:6px;}
   .admin-open p{color:var(--text-dim); font-size:0.9rem; margin-bottom:14px;}
   .admin-count-line{color:var(--text-faint);}
+  .admin-video-day{margin-bottom:28px;}
+  .admin-video-day h3{font-size:1.15rem; margin-bottom:12px; text-transform:capitalize;}
+  .admin-video-card{
+    background:var(--surface); border:1px solid var(--border-soft); border-radius:var(--radius-m);
+    padding:14px; margin-bottom:12px; display:grid; gap:12px;
+  }
+  @media (min-width:720px){
+    .admin-video-card{grid-template-columns:minmax(180px,280px) 1fr; align-items:start;}
+  }
+  .admin-video{width:100%; border-radius:var(--radius-s); background:#000; max-height:320px;}
+  .admin-video-meta p{color:var(--text-dim); font-size:0.88rem; margin-top:4px;}
+  .admin-video-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
   .wallet-chip{
     display:flex; align-items:center; gap:9px;
     background:var(--surface-2); border:1px solid var(--border);
@@ -464,15 +476,19 @@
   }
   .reveal-congrats{font-family:var(--font-display); font-size:1.1rem; color:var(--gold-bright); margin-bottom:6px;}
   .reveal-card.won .reveal-congrats{font-size:1.65rem; letter-spacing:0.01em;}
+  .reveal-kicker{font-size:0.72rem; letter-spacing:0.14em; text-transform:uppercase; color:var(--gold-dim); margin-bottom:8px;}
+  .reveal-meta{margin-top:10px; font-size:0.82rem; line-height:1.45;}
 
   .confetti-piece{
-    position:absolute; top:-18px; border-radius:1px; opacity:0.95;
-    animation-name:confetti-fall; animation-timing-function:linear; animation-fill-mode:forwards;
+    position:absolute; left:50%; top:42%; border-radius:1px; opacity:0.95;
+    animation-name:confetti-burst; animation-timing-function:cubic-bezier(.12,.7,.22,1); animation-fill-mode:forwards;
   }
   .confetti-piece.round{border-radius:50%;}
-  @keyframes confetti-fall{
-    0%{ transform:translate3d(0,-12px,0) rotate(0deg); opacity:1; }
-    100%{ transform:translate3d(var(--dx, 24px), 108vh, 0) rotate(720deg); opacity:0; }
+  .confetti-piece.burst{box-shadow:0 0 8px rgba(232,200,119,0.45);}
+  @keyframes confetti-burst{
+    0%{ transform:translate(-50%,-50%) scale(0.2) rotate(0deg); opacity:1; }
+    16%{ transform:translate(calc(-50% + var(--ex)), calc(-50% + var(--ey))) scale(1) rotate(140deg); opacity:1; }
+    100%{ transform:translate(calc(-50% + var(--ex) * 0.45), calc(-50% + var(--ey) + var(--fall, 85vh))) rotate(780deg); opacity:0; }
   }
 
   /* ============================================================

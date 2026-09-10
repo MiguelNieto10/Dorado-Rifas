@@ -4,7 +4,7 @@
  */
 import { getFirestore, collection, getDocs } from "firebase/firestore";
 import { getFirebaseApp } from "./db.js";
-import { slugFromUsername } from "./auth.js";
+import { slugFromUsername, WHATSAPP_GROUP_LINK } from "./auth.js";
 
 const CARD_VALUES = [2000, 5000, 10000, 20000, 50000, 100000];
 
@@ -214,16 +214,103 @@ function renderCaja(root, bundle, mode, dateStr) {
     "</div>";
 }
 
+function dateHeading(key) {
+  const parts = String(key || "").split("-");
+  if (parts.length !== 3) return key || "Sin fecha";
+  const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  return d.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+function renderVideos(root, bundle, mode, dateStr) {
+  const draws = bundle.draws
+    .filter((d) => inRange(d.ts, mode, dateStr))
+    .slice()
+    .sort((a, b) => (Number(b.ts) || 0) - (Number(a.ts) || 0));
+  if (!draws.length) {
+    root.innerHTML = '<div class="empty-note">Aún no hay sorteos grabados en este periodo.</div>';
+    return;
+  }
+  const groups = {};
+  draws.forEach((d) => {
+    const key = d.dateKey || bogotaDateFromTs(d.ts);
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(d);
+  });
+  const keys = Object.keys(groups).sort().reverse();
+  root.innerHTML = keys
+    .map((key) => {
+      const cards = groups[key]
+        .map((d) => {
+          const when = d.ts
+            ? new Date(d.ts).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })
+            : "—";
+          const video = d.videoUrl
+            ? '<video class="admin-video" controls playsinline src="' + escapeHtml(d.videoUrl) + '"></video>'
+            : '<div class="empty-note">Video aún no disponible. El archivo se guarda al terminar el sorteo.</div>';
+          return (
+            '<article class="admin-video-card">' +
+              video +
+              '<div class="admin-video-meta">' +
+                "<strong>Tablero " +
+                fmt(d.cardValue) +
+                " · Nº " +
+                escapeHtml(d.winningNumber || "—") +
+                "</strong>" +
+                "<p>Ganador: " +
+                escapeHtml(d.winnerName || "—") +
+                " · " +
+                escapeHtml(d.winnerCity || "—") +
+                "</p>" +
+                "<p>Premio " +
+                fmt(d.prize) +
+                " · " +
+                escapeHtml(when) +
+                "</p>" +
+                '<div class="admin-video-actions">' +
+                  (d.videoUrl
+                    ? '<a class="btn btn-outline btn-sm" href="' +
+                      escapeHtml(d.videoUrl) +
+                      '" download target="_blank" rel="noopener">Descargar</a>' +
+                      '<button class="btn btn-gold btn-sm" type="button" data-share-video="' +
+                      escapeHtml(d.id || "") +
+                      '">Enviar al grupo</button>'
+                    : "") +
+                "</div>" +
+              "</div>" +
+            "</article>"
+          );
+        })
+        .join("");
+      return '<section class="admin-video-day"><h3>' + escapeHtml(dateHeading(key)) + "</h3>" + cards + "</section>";
+    })
+    .join("");
+}
+
+function bogotaDateFromTs(ts) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Bogota",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(ts ? new Date(ts) : new Date());
+  } catch {
+    return "sin-fecha";
+  }
+}
+
 let cachedBundle = null;
 
 export async function refreshAdminViews(cardsCache) {
   const usersEl = document.getElementById("adminUserList");
   const cajaEl = document.getElementById("adminCajaBody");
+  const videosEl = document.getElementById("adminVideosBody");
   const countEl = document.getElementById("adminUserCount");
-  if (!usersEl || !cajaEl) return;
+  if (!usersEl || !cajaEl || !videosEl) return;
 
   usersEl.innerHTML = '<div class="empty-note">Cargando…</div>';
   cajaEl.innerHTML = '<div class="empty-note">Cargando…</div>';
+  videosEl.innerHTML = '<div class="empty-note">Cargando…</div>';
 
   cachedBundle = await loadAdminBundle(cardsCache);
   const mode = document.getElementById("adminRange")?.value || "all";
@@ -236,6 +323,7 @@ export async function refreshAdminViews(cardsCache) {
   if (countEl) countEl.textContent = String(rows.length);
   renderUsers(usersEl, rows);
   renderCaja(cajaEl, cachedBundle, mode, dateStr);
+  renderVideos(videosEl, cachedBundle, mode, dateStr);
 }
 
 export function bindAdminFilters(getCardsCache) {
@@ -250,4 +338,50 @@ export function bindAdminFilters(getCardsCache) {
   if (reload) {
     reload.addEventListener("click", () => refreshAdminViews(getCardsCache()));
   }
+  const videosEl = document.getElementById("adminVideosBody");
+  if (videosEl) {
+    videosEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-share-video]");
+      if (!btn) return;
+      const id = btn.dataset.shareVideo;
+      const d = (cachedBundle && cachedBundle.draws || []).find((x) => x.id === id);
+      if (!d) return;
+      shareDrawEvidence(d);
+    });
+  }
+}
+
+async function shareDrawEvidence(d) {
+  const text =
+    "🏆 *Dorado Rifas* — Evidencia del sorteo\n" +
+    "Tablero: " + fmt(d.cardValue) + "\n" +
+    "Número ganador: *" + (d.winningNumber || "—") + "*\n" +
+    "Ganador(a): " + (d.winnerName || "—") + "\n" +
+    "Ciudad: " + (d.winnerCity || "—") + "\n" +
+    "Premio (50%): " + fmt(d.prize) + "\n" +
+    "Fecha: " + (d.ts ? new Date(d.ts).toLocaleString("es-CO") : "—");
+  try {
+    const payload = { title: "Dorado Rifas", text };
+    if (d.videoUrl) {
+      const res = await fetch(d.videoUrl);
+      const blob = await res.blob();
+      const ext = (blob.type || "").indexOf("mp4") >= 0 ? "mp4" : "webm";
+      const file = new File([blob], "sorteo-" + (d.winningNumber || "dorado") + "." + ext, { type: blob.type || "video/webm" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        payload.files = [file];
+      }
+    }
+    if (navigator.share) {
+      await navigator.share(payload);
+      return;
+    }
+  } catch {
+    /* canceló o el celular no adjuntó el video */
+  }
+  try {
+    navigator.clipboard.writeText(text);
+  } catch {
+    /* ignore */
+  }
+  window.open(WHATSAPP_GROUP_LINK, "_blank", "noopener");
 }

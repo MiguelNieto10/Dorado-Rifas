@@ -37,7 +37,7 @@ export function createDrawRecorder() {
   function brand() {
     if (!logoImg) {
       logoImg = new Image();
-      logoImg.src = "/logo.png?v=2";
+      logoImg.src = "/logo.png?v=3";
     }
     if (logoImg.complete && logoImg.naturalWidth) {
       const w = 176;
@@ -56,7 +56,7 @@ export function createDrawRecorder() {
       if (!mime) return false;
       if (!logoImg) {
         logoImg = new Image();
-        logoImg.src = "/logo.png?v=2";
+        logoImg.src = "/logo.png?v=3";
       }
       try {
         chunks.length = 0;

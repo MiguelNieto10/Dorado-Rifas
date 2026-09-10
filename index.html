@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dorado Rifas</title>
-<link rel="icon" type="image/png" href="/favicon.png?v=2">
-<link rel="apple-touch-icon" href="/favicon.png?v=2">
+<link rel="icon" type="image/png" href="/favicon.png?v=3">
+<link rel="apple-touch-icon" href="/favicon.png?v=3">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="/src/styles.css">
@@ -14,7 +14,7 @@
 <div class="auth-gate" id="authGate">
   <div class="auth-card">
     <div class="auth-brand">
-      <img class="auth-logo" src="/logo.png?v=2" alt="Dorado — Gana al Instante">
+      <img class="auth-logo" src="/logo.png?v=3" alt="Dorado — Gana al Instante">
     </div>
 
     <p class="auth-error" id="authError" hidden></p>
@@ -71,7 +71,7 @@
 
 <header class="topbar">
   <button type="button" class="brand" data-nav="lobby" title="Dorado">
-    <img class="brand-logo" src="/logo.png?v=2" alt="Dorado — Gana al Instante">
+    <img class="brand-logo" src="/logo.png?v=3" alt="Dorado — Gana al Instante">
   </button>
   <nav class="nav">
     <button type="button" data-nav="lobby" class="active">Tableros</button>
@@ -79,6 +79,7 @@
     <button type="button" data-nav="historial">Ganadores</button>
     <button type="button" class="admin-only" data-nav="admin-users">Usuarios</button>
     <button type="button" class="admin-only" data-nav="admin-caja">Caja</button>
+    <button type="button" class="admin-only" data-nav="admin-videos">Sorteos</button>
     <button type="button" id="howBtn2">Cómo funciona</button>
   </nav>
   <button class="wallet-chip" id="walletChip" type="button" title="Ir a mi billetera">
@@ -91,6 +92,7 @@
   <button type="button" data-nav="lobby">Juego</button>
   <button type="button" data-nav="admin-users">Usuarios</button>
   <button type="button" data-nav="admin-caja">Caja</button>
+  <button type="button" data-nav="admin-videos">Sorteos</button>
   <label class="admin-filter-item">Periodo
     <select id="adminRange">
       <option value="all">Todo</option>
@@ -217,13 +219,22 @@
     </div>
     <div id="adminCajaBody"></div>
   </section>
+
+  <section id="view-admin-videos" class="view" hidden>
+    <div class="hero" style="padding-top:24px; padding-bottom:8px;">
+      <h1 style="font-size:clamp(1.6rem,3.4vw,2.2rem);">Sorteos grabados</h1>
+      <p>Cada tablero deja un video de respaldo, organizado por fecha. Ábrelo, descárgalo o envíalo al grupo como evidencia del ganador.</p>
+    </div>
+    <div id="adminVideosBody"></div>
+  </section>
 </main>
 
 <footer>
   <p class="legal-note">
     Seis tableros de juego, números del 00 al 99. El premio es el 50% de lo recaudado
     y siempre hay un ganador entre los números verdes y pagos. El sorteo es todos los días
-    a las 9:00 p. m. (cuenta 10 a 0). Después el tablero se abre de nuevo.
+    a las 9:00 p. m. (cuenta 10 a 0, solo quienes tienen número pago en ese tablero).
+    Después de 10 segundos el tablero se abre de nuevo.
     Envía el comprobante a un administrador del grupo para asegurar tu número;
     sin comprobante se libera a los 15 minutos.
   </p>
@@ -282,8 +293,8 @@
       <p><span class="hi">02</span>Selecciona uno o varios números del 00 al 99 y paga.</p>
       <p><span class="hi">03</span>Envía el comprobante a un administrador del grupo. Sin comprobante el número se libera a los 15 minutos. Cuando finaliza, queda en verde y queda asegurado.</p>
       <p><span class="hi">04</span>Siempre hay ganador: se juega el premio sobre los números verdes y pagos. El premio es el 50% de lo recaudado.</p>
-      <p><span class="hi">05</span>El sorteo es todos los días, lunes a domingo, a las 9:00 p. m.: cuenta 10 hasta 0 y se muestra el ganador.</p>
-      <p><span class="hi">06</span>Segundos después el tablero se habilita de nuevo para seguir apostando. Puedes retirar a Nequi o dejar el saldo para otro tablero.</p>
+      <p><span class="hi">05</span>El sorteo es todos los días, lunes a domingo, a las 9:00 p. m. Quienes tienen número pago en ese tablero ven la cuenta 10 a 0 y al ganador (número, nombre, ciudad y premio del 50%).</p>
+      <p><span class="hi">06</span>Confeti negro y dorado, y a los 10 segundos el tablero se abre de nuevo con los números disponibles. Puedes retirar a Nequi o dejar el saldo para otro tablero.</p>
     </div>
     <div class="modal-actions"><button class="btn btn-gold btn-block" id="howClose" type="button">Entendido</button></div>
   </div>

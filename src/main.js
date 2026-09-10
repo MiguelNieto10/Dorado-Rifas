@@ -1,6 +1,7 @@
 import { connectFirestore } from "./db.js";
 import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
 import { createDrawRecorder } from "./drawRecord.js";
+import { archiveDrawVideo, bogotaDateKey } from "./drawStore.js";
 import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
 /* ================================================================
@@ -40,7 +41,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   // ver el proceso entero ahora mismo sin esperar.
   const DEMO_SPEED = true;
   const SPIN_MS = 10000; // 10 segundos: el temporizador cuenta 10, 9, 8… hasta 0
-  const REVEAL_HOLD_MS = 16000; // tiempo para enviar el sorteo al grupo
+  const REVEAL_HOLD_MS = 10000; // ganador visible 10 s, sin cuenta en pantalla, luego se reabre
   const HOLD_MS = 15 * 60 * 1000; // sin comprobante, el número se libera
   const DRAW_HOUR_BOGOTA = 21;
 
@@ -77,6 +78,22 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   }
   function paidNumbers(card){
     return Object.keys(card.numbers || {}).filter((n)=> isPaid(card.numbers[n]));
+  }
+  function slotBelongsToMe(slot){
+    if(!slot) return false;
+    if(currentUid && slot.ownerUid && slot.ownerUid === currentUid) return true;
+    return slot.owner === PROFILE.name || slot.owner === 'Tú' || slot.isUser === true;
+  }
+  function userHasPaidOn(card){
+    return paidNumbers(card).some((n)=> slotBelongsToMe(card.numbers[n]));
+  }
+  function shouldWatchDraw(card){
+    if(!card) return false;
+    if(isAdmin) return true;
+    return userHasPaidOn(card);
+  }
+  function isDrawLive(card){
+    return !!(card && (card.status === 'drawing' || card.status === 'revealed'));
   }
   function recountSold(card){
     card.sold = paidNumbers(card).length;
@@ -259,7 +276,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
           // viejo estado intermedio de cuenta regresiva) se trata
           // como cartón abierto normal, para que nunca quede
           // "atascado" sin poder venderse ni sortearse.
-          if(cardsCache[value].status !== 'drawing'){
+          if(cardsCache[value].status !== 'drawing' && cardsCache[value].status !== 'revealed'){
             cardsCache[value].status = 'open';
           }
         } else {
@@ -275,7 +292,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         // comentario), que revisa si el aviso de sorteo está realmente
         // visible en pantalla en vez de confiar ciegamente en la
         // bandera en memoria.
-        if(cardsCache[value].status === 'drawing'){
+        if(isDrawLive(cardsCache[value])){
           runDrawAnimation(cardsCache[value]);
         }
       }, ()=>{});
@@ -322,7 +339,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     });
     if(name === 'wallet') renderWalletView();
     if(name === 'historial') renderHistorialView();
-    if(isAdmin && (name === 'admin-users' || name === 'admin-caja')){
+    if(isAdmin && (name === 'admin-users' || name === 'admin-caja' || name === 'admin-videos')){
       refreshAdminViews(cardsCache);
     }
     window.scrollTo({top:0, behavior:'instant'});
@@ -347,11 +364,11 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
   function statusLabel(status){
     if(status === 'open') return 'ABIERTO';
-    if(status === 'drawing') return 'EN SORTEO';
+    if(status === 'drawing' || status === 'revealed') return 'EN SORTEO';
     return 'ABIERTO';
   }
   function statusPillClass(status){
-    if(status === 'drawing') return 'pill pill-drawing';
+    if(status === 'drawing' || status === 'revealed') return 'pill pill-drawing';
     return 'pill pill-open';
   }
 
@@ -552,12 +569,16 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     const pool = paidNumbers(card);
     if(pool.length === 0) return;
     if(card.status === 'drawing' && card.pendingWinner) return;
+    if(card.status === 'revealed') return;
     card.status = 'drawing';
     card.spinEndsAt = Date.now() + SPIN_MS;
     card.pendingWinner = pool[Math.floor(Math.random()*pool.length)];
     card.drawCollected = pool.length * card.value;
+    card.drawId = card.value + '-' + Date.now();
+    card.drawSettled = false;
+    card.revealEndsAt = null;
     chime([660, 880], 0.5);
-    toast('🔔 Sorteo del tablero ' + fmt(card.value) + ': cuenta 10 a 0. El ganador sale de los números verdes y pagos.');
+    toast('🔔 Sorteo del tablero ' + fmt(card.value) + ': cuenta 10 a 0 entre números verdes y pagos.');
     // Importante: guardamos YA el estado "en sorteo". Si no lo
     // guardáramos aquí, la base de datos seguiría diciendo "abierto
     // y lleno", y cada vez que llegara una actualización (incluso
@@ -571,8 +592,15 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   let lastWinnerMsg = '';
   let lastDrawFile = null;
   let drawRec = null;
+  const creditedDraws = {};
+  const revealShown = {};
+  let revealCloseTimer = null;
   function runDrawAnimation(card){
+    if(!shouldWatchDraw(card)) return;
     const overlayEl = document.getElementById('drawOverlay');
+    if(overlayEl && !overlayEl.hidden && overlayEl.dataset.cardValue && overlayEl.dataset.cardValue !== String(card.value)){
+      return;
+    }
     // CORRECCIÓN CLAVE: la bandera "drawRunning" es solo una variable
     // en memoria. Si una prueba anterior se interrumpió a medias
     // (recargaste a mitad de un sorteo, cerraste el aviso a la fuerza,
@@ -585,10 +613,21 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     // visible. Si no lo está, ignoramos la bandera vieja y dejamos que
     // el sorteo arranque de nuevo — así un cartón nunca queda
     // "trabado" de forma silenciosa.
-    if(drawRunning[card.value] && overlayEl && !overlayEl.hidden) return;
+    if(drawRunning[card.value] && overlayEl && !overlayEl.hidden){
+      if(card.status === 'revealed' || (card.spinEndsAt && Date.now() >= card.spinEndsAt)){
+        finishDraw(card);
+      }
+      return;
+    }
     drawRunning[card.value] = true;
+    if(openCardValue !== card.value){
+      openCardValue = card.value;
+      showView('card');
+      renderCardDetail(card.value);
+    }
     const stage = document.getElementById('drawStage');
-    document.getElementById('drawOverlay').hidden = false;
+    overlayEl.hidden = false;
+    overlayEl.dataset.cardValue = String(card.value);
     // CORRECCIÓN ADICIONAL: este aviso usa "position:fixed", que se
     // ancla a la ventana visible. Si la página estaba desplazada hacia
     // abajo (por ejemplo, viendo los números 80-99 o la "Herramienta
@@ -602,8 +641,11 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     drawRec = createDrawRecorder();
     if(!drawRec.start()) drawRec = null;
 
-    // Si la app se recargó a mitad de un sorteo, retomamos el
-    // conteo desde donde iba en vez de empezar de cero.
+    if(card.status === 'revealed' || (card.spinEndsAt && Date.now() >= card.spinEndsAt)){
+      finishDraw(card);
+      return;
+    }
+
     const startedAt = card.spinEndsAt ? (card.spinEndsAt - SPIN_MS) : Date.now();
 
     // "alreadyFinished" evita que el resultado se procese dos veces
@@ -669,106 +711,171 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   }
 
   function finishDraw(card){
+    if(!card || !card.pendingWinner) return;
     const winnerSlot = card.numbers[card.pendingWinner];
     const value = card.value;
     const prize = (card.drawCollected != null ? card.drawCollected : paidNumbers(card).length * value) * 0.5;
-    const wonByUser = !!(winnerSlot && (winnerSlot.owner === PROFILE.name || winnerSlot.owner === 'Tú'));
+    const wonByUser = slotBelongsToMe(winnerSlot);
     const winnerName = winnerSlot ? winnerSlot.owner : 'Sin comprador';
     const winnerCity = winnerSlot ? winnerSlot.city : '—';
+    const when = new Date().toLocaleString('es-CO',{dateStyle:'medium',timeStyle:'short'});
+    const paidCount = card.drawCollected != null ? Math.round(card.drawCollected / value) : paidNumbers(card).length;
+    const drawKey = card.drawId || (value + '-' + card.pendingWinner);
 
-    chime(wonByUser ? [523,659,784,1046] : [440,554], 0.7);
-
-    if(wonByUser){
-      wallet.balance += prize;
-      addActivity('premio', 'Ganaste el sorteo del tablero ' + fmt(value) + ' (número ' + card.pendingWinner + ')', prize);
-      saveWallet();
+    if(!card.drawSettled){
+      card.drawSettled = true;
+      card.status = 'revealed';
+      card.revealEndsAt = Date.now() + REVEAL_HOLD_MS;
+      card.history = [{ winningNumber:card.pendingWinner, winnerName, winnerCity, prize, wonByUser:false, ts:Date.now(), winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null }]
+        .concat(card.history||[]).slice(0,5);
+      saveCard(value);
+      if(usingDb && db){
+        db.doc('draws/' + drawKey).set({
+          cardValue: value,
+          winningNumber: card.pendingWinner,
+          winnerName,
+          winnerCity,
+          winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null,
+          prize,
+          collected: card.drawCollected != null ? card.drawCollected : prize * 2,
+          paidCount,
+          ts: Date.now(),
+          dateKey: bogotaDateKey(),
+          newCardOpen: true
+        }).catch(()=>{});
+      }
     }
 
-    card.history = [{ winningNumber:card.pendingWinner, winnerName, winnerCity, prize, wonByUser, ts:Date.now(), winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null }]
-      .concat(card.history||[]).slice(0,5);
     if(currentView === 'historial') renderHistorialView();
 
-    // Mensaje listo para pegar en el grupo de WhatsApp: sirve como
-    // "constancia" pública de que el premio se entregó de verdad.
     lastWinnerMsg = '🏆 *Dorado Rifas* — Sorteo oficial\n' +
       'Tablero de juego: ' + fmt(value) + '\n' +
       'Número ganador: *' + card.pendingWinner + '*\n' +
       'Ganador(a): ' + winnerName + '\n' +
       'Ciudad: ' + winnerCity + '\n' +
       'Premio (50% de lo recaudado): ' + fmt(prize) + '\n' +
-      'Fecha: ' + new Date().toLocaleString('es-CO',{dateStyle:'medium',timeStyle:'short'}) + '\n\n' +
+      'Números pagos: ' + paidCount + '\n' +
+      'Fecha: ' + when + '\n\n' +
       'El tablero de ' + fmt(value) + ' ya está *habilitado de nuevo*.\n' +
       'Únete y juega: ' + location.origin;
 
-    if(usingDb && db){
-      db.doc('draws/' + value + '-' + Date.now()).set({
-        cardValue: value,
-        winningNumber: card.pendingWinner,
-        winnerName,
-        winnerCity,
-        winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null,
-        prize,
-        collected: card.drawCollected != null ? card.drawCollected : prize * 2,
-        paidCount: card.drawCollected != null ? Math.round(card.drawCollected / value) : paidNumbers(card).length,
-        ts: Date.now(),
-        newCardOpen: true
-      }).catch(()=>{});
+    if(wonByUser && !creditedDraws[drawKey]){
+      creditedDraws[drawKey] = true;
+      wallet.balance += prize;
+      addActivity('premio', 'Ganaste el sorteo del tablero ' + fmt(value) + ' (número ' + card.pendingWinner + ')', prize);
+      saveWallet();
     }
+
+    if(!shouldWatchDraw(card)) return;
+
+    if(revealShown[drawKey]){
+      scheduleRevealClose(card);
+      return;
+    }
+    revealShown[drawKey] = true;
+
+    chime(wonByUser ? [523,659,784,1046] : [440,554], 0.7);
 
     const rec = drawRec;
     drawRec = null;
-    if(rec){
-      rec.winner({
-        kicker: 'Tablero ' + fmt(value) + ' · sorteo en vivo',
-        number: card.pendingWinner,
-        name: winnerName,
-        city: winnerCity,
-        prize: fmt(prize)
-      });
-      rec.stop().then((blob)=>{
-        if(!blob){ lastDrawFile = null; return; }
-        const ext = blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
-        lastDrawFile = new File([blob], 'sorteo-dorado-' + card.pendingWinner + '.' + ext, { type: blob.type });
-      }).catch(()=>{ lastDrawFile = null; });
+    const clip = {
+      kicker: 'Tablero ' + fmt(value) + ' · sorteo en vivo',
+      number: card.pendingWinner,
+      name: winnerName,
+      city: winnerCity,
+      prize: fmt(prize)
+    };
+    let recorder = rec;
+    if(!recorder){
+      recorder = createDrawRecorder();
+      if(!recorder.start()) recorder = null;
+    }
+    if(recorder){
+      recorder.winner(clip);
+      const hold = setInterval(()=> recorder.winner(clip), 200);
+      setTimeout(()=>{
+        clearInterval(hold);
+        recorder.stop().then(async (blob)=>{
+          if(!blob){ lastDrawFile = null; return; }
+          const ext = blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+          lastDrawFile = new File([blob], 'sorteo-dorado-' + card.pendingWinner + '.' + ext, { type: blob.type });
+          try{
+            const saved = await archiveDrawVideo(blob, {
+              drawId: drawKey,
+              cardValue: value,
+              winningNumber: card.pendingWinner,
+              winnerName,
+              winnerCity,
+              winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null,
+              prize,
+              collected: card.drawCollected != null ? card.drawCollected : prize * 2,
+              paidCount,
+              ts: Date.now(),
+              dateKey: bogotaDateKey()
+            });
+            if(saved && saved.file) lastDrawFile = saved.file;
+          }catch(e){
+            console.error('No se pudo guardar el video del sorteo:', e);
+          }
+        }).catch(()=>{ lastDrawFile = null; });
+      }, 2800);
     }
 
     const overlay = document.getElementById('drawOverlay');
+    overlay.hidden = false;
+    overlay.dataset.cardValue = String(value);
     overlay.classList.toggle('is-win', wonByUser);
 
     const stage = document.getElementById('drawStage');
+    const shareRow = isAdmin
+      ? ('<div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:2px;">' +
+          '<button class="btn btn-gold btn-sm" id="shareWaDrawBtn" type="button">Enviar sorteo al grupo</button>' +
+          '<button class="btn btn-outline btn-sm" id="copyWinnerMsgBtn" type="button">Copiar mensaje</button>' +
+        '</div>')
+      : '';
     stage.innerHTML =
       '<div class="reveal-card' + (wonByUser ? ' won' : '') + '" id="revealCard">' +
-        (wonByUser ? '<div class="reveal-congrats">¡Ganaste!</div>' : '<div class="reveal-congrats">Número ganador</div>') +
+        (wonByUser ? '<div class="reveal-congrats">¡Ganaste!</div>' : '<div class="reveal-congrats">Tenemos ganador</div>') +
+        '<div class="reveal-kicker">Tablero de juego ' + fmt(value) + '</div>' +
         '<div class="reveal-num">' + card.pendingWinner + '</div>' +
-        '<div class="reveal-winner">' + (wonByUser ? 'El premio es tuyo' : winnerName) + '</div>' +
+        '<div class="reveal-winner">' + winnerName + '</div>' +
         '<div class="reveal-city">' + winnerCity + '</div>' +
         '<div class="reveal-prize">' + fmt(prize) + '</div>' +
-        (wonByUser ? '<p class="draw-msg" style="margin-top:10px;">Ya está en tu billetera. Úsalo en otro tablero o retíralo a Nequi.</p>'
-                   : '<p class="draw-msg" style="margin-top:10px;">Este tablero se reabre en unos segundos.</p>') +
+        '<p class="draw-msg reveal-meta">Premio: 50% de lo recaudado · ' + paidCount + ' números pagos<br>' + when + '</p>' +
+        (wonByUser
+          ? '<p class="draw-msg" style="margin-top:10px;">Ya está en tu billetera. Úsalo en otro tablero o retíralo a Nequi.</p>'
+          : '<p class="draw-msg" style="margin-top:10px;">El tablero se abre de nuevo con los números disponibles.</p>') +
       '</div>' +
-      '<div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:2px;">' +
-        '<button class="btn btn-gold btn-sm" id="shareWaDrawBtn" type="button">Enviar sorteo al grupo</button>' +
-        '<button class="btn btn-outline btn-sm" id="copyWinnerMsgBtn" type="button">Copiar mensaje</button>' +
-        '<button class="btn btn-outline" id="drawCloseBtn" type="button" data-value="' + card.value + '">Cerrar</button>' +
-      '</div>';
+      shareRow;
 
-    spawnConfetti(overlay, wonByUser ? 90 : 36);
+    spawnConfetti(overlay, 140);
+    scheduleRevealClose(card);
+  }
 
-    // El botón "Cerrar" lo maneja el oyente central de clics (sección
-    // 13), que lee data-value para saber a qué cartón cerrar/reabrir.
-    setTimeout(()=>closeDrawAndReset(card), REVEAL_HOLD_MS);
+  function scheduleRevealClose(card){
+    clearTimeout(revealCloseTimer);
+    const wait = Math.max(0, (card.revealEndsAt || (Date.now() + REVEAL_HOLD_MS)) - Date.now());
+    revealCloseTimer = setTimeout(()=>closeDrawAndReset(card), wait);
   }
 
   function closeDrawAndReset(card){
-    if(!drawRunning[card.value]) return; // ya se cerró
-    document.getElementById('drawOverlay').hidden = true;
-    document.getElementById('drawOverlay').classList.remove('is-win');
+    const overlay = document.getElementById('drawOverlay');
+    if(overlay && overlay.dataset.cardValue === String(card.value)){
+      overlay.hidden = true;
+      overlay.classList.remove('is-win');
+      delete overlay.dataset.cardValue;
+      const layer = overlay.querySelector('.confetti-layer');
+      if(layer) layer.innerHTML = '';
+    }
     drawRunning[card.value] = false;
+
+    if(card.status === 'open' && card.sold === 0) return;
 
     const fresh = freshCard(card.value);
     fresh.history = card.history;
     fresh.lastDrawDate = card.lastDrawDate;
     cardsCache[card.value] = fresh;
+    selectedNumbers.clear();
     saveCard(card.value);
     toast('El tablero de ' + fmt(card.value) + ' se habilitó de nuevo');
   }
@@ -779,6 +886,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   function forceResetCard(value){
     document.getElementById('drawOverlay').hidden = true;
     document.getElementById('drawOverlay').classList.remove('is-win');
+    delete document.getElementById('drawOverlay').dataset.cardValue;
     drawRunning[value] = false;
     const old = cardsCache[value];
     const fresh = freshCard(value);
@@ -798,23 +906,26 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       container.appendChild(layer);
     }
     layer.innerHTML = '';
-    // Paleta solo dorada / marfil / ámbar: el verde se salía de la gama casino.
-    const colors = ['#e8c877','#c9a24b','#f4e4b0','#efe8d8','#8a713a','#c98a2f'];
-    const n = count || 70;
+    const colors = ['#0a0a0a','#111111','#1a1a1a','#2a2a2a','#e8c877','#c9a24b','#f4e4b0','#8a713a'];
+    const n = count || 120;
     for(let i=0;i<n;i++){
       const p = document.createElement('div');
-      const round = Math.random() > 0.55;
-      p.className = 'confetti-piece' + (round ? ' round' : '');
-      p.style.left = (Math.random()*100) + '%';
+      const round = Math.random() > 0.5;
+      const burst = Math.random() < 0.35;
+      p.className = 'confetti-piece' + (round ? ' round' : '') + (burst ? ' burst' : '');
       p.style.background = colors[Math.floor(Math.random()*colors.length)];
-      p.style.width = (round ? 6 + Math.random()*7 : 5 + Math.random()*5) + 'px';
-      p.style.height = (round ? 6 + Math.random()*7 : 10 + Math.random()*14) + 'px';
-      p.style.setProperty('--dx', (Math.random()*160 - 80) + 'px');
-      p.style.animationDuration = (2.4 + Math.random()*2.2) + 's';
-      p.style.animationDelay = (Math.random()*0.7) + 's';
+      p.style.width = (round ? 6 + Math.random()*8 : 5 + Math.random()*6) + 'px';
+      p.style.height = (round ? 6 + Math.random()*8 : 10 + Math.random()*16) + 'px';
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 40 + Math.random() * 220;
+      p.style.setProperty('--ex', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--ey', Math.sin(angle) * dist * 0.55 + 'px');
+      p.style.setProperty('--fall', (70 + Math.random()*40) + 'vh');
+      p.style.animationDuration = (2.8 + Math.random()*1.6) + 's';
+      p.style.animationDelay = (Math.random()*0.18) + 's';
       layer.appendChild(p);
-      setTimeout(()=>p.remove(), 5200);
     }
+    setTimeout(()=>{ if(layer) layer.innerHTML = ''; }, 4800);
   }
 
   // ---------- 11. BILLETERA: recargar / retirar ----------
@@ -1071,7 +1182,14 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     setInterval(()=>{
       CARD_VALUES.forEach((value)=>{
         const card = cardsCache[value];
-        if(card && expireHolds(card)) saveCard(value);
+        if(!card) return;
+        if(expireHolds(card)) saveCard(value);
+        if(card.status === 'drawing' && card.spinEndsAt && Date.now() >= card.spinEndsAt + 2000){
+          finishDraw(card);
+        }
+        if(card.status === 'revealed' && card.revealEndsAt && Date.now() >= card.revealEndsAt){
+          closeDrawAndReset(card);
+        }
       });
       maybeScheduledDraws();
     }, 10000);
