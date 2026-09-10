@@ -358,7 +358,7 @@ export function runAuthGate() {
         if (userInput) userInput.placeholder = "tu usuario de administrador";
       } else {
         if (title) title.textContent = "Bienvenido a Dorado";
-        if (lead) lead.textContent = "Crea tu cuenta o inicia sesión. Así tus números y tu billetera quedan a tu nombre.";
+        if (lead) lead.textContent = "Crea tu cuenta o inicia sesión. Así tus números quedan a tu nombre.";
       }
       setAuthError("");
       syncRegisterFields();

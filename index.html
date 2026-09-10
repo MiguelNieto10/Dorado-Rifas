@@ -21,7 +21,7 @@
 
     <div data-auth-step="form">
       <h2 id="authTitle">Bienvenido a Dorado</h2>
-      <p class="auth-lead" id="authLead">Crea tu cuenta o inicia sesión. Así tus números y tu billetera quedan a tu nombre.</p>
+      <p class="auth-lead" id="authLead">Crea tu cuenta o inicia sesión. Así tus números quedan a tu nombre.</p>
       <div class="auth-tabs" id="authTabs">
         <button type="button" class="active" id="authModeRegister">Crear cuenta</button>
         <button type="button" id="authModeLogin">Ya tengo cuenta</button>
@@ -89,17 +89,12 @@
   </button>
   <nav class="nav">
     <button type="button" data-nav="lobby" class="active">Tableros</button>
-    <button type="button" data-nav="wallet">Billetera</button>
     <button type="button" data-nav="historial">Ganadores</button>
     <button type="button" class="admin-only" data-nav="admin-users">Usuarios</button>
     <button type="button" class="admin-only" data-nav="admin-caja">Caja</button>
     <button type="button" class="admin-only" data-nav="admin-videos">Sorteos</button>
     <button type="button" id="howBtn2">Cómo funciona</button>
   </nav>
-  <button class="wallet-chip" id="walletChip" type="button" title="Ir a mi billetera">
-    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-4M3 7l7-4 4 4"/><circle cx="17" cy="14" r="1.4" fill="currentColor" stroke="none"/></svg>
-    <span><span class="lbl">Saldo</span><span class="amt" id="walletBalance">$0</span></span>
-  </button>
   <button class="logout-btn" id="logoutBtn" type="button">Cerrar sesión</button>
 </header>
 
@@ -191,21 +186,8 @@
     </div>
   </section>
 
-  <!-- ===================== VISTA: BILLETERA ===================== -->
-  <section id="view-wallet" class="view" hidden>
-    <div class="wallet-hero">
-      <div>
-        <div class="bal-k">Saldo disponible</div>
-        <div class="bal-v" id="wvBalance">$0</div>
-      </div>
-      <div class="wallet-actions">
-        <button class="btn btn-ghost" id="depositBtn" type="button">Recargar saldo</button>
-        <button class="btn btn-gold" id="withdrawBtn" type="button">Retirar a Nequi</button>
-      </div>
-    </div>
-    <span class="section-label">Actividad reciente</span>
-    <div class="activity-list" id="activityList"></div>
-  </section>
+  <!-- Billetera oculta: los pagos van por Nequi. Se deja el bloque por si más adelante se reactiva. -->
+  <section id="view-wallet" class="view" hidden></section>
 
   <!-- ===================== VISTA: HISTORIAL DE GANADORES ===================== -->
   <section id="view-historial" class="view" hidden>
@@ -271,10 +253,6 @@
       <span><b>Pagar con Nequi</b><span>Reservar y pagar a 3150505240</span></span>
       <span>→</span>
     </button>
-    <button class="pay-option" id="payWallet" type="button">
-      <span><b>👛 Saldo de mi billetera</b><span id="payWalletSub">Disponible: $0</span></span>
-      <span>→</span>
-    </button>
     <div class="modal-actions">
       <button class="btn btn-outline btn-block" id="payCancel" type="button">Cancelar</button>
     </div>
@@ -329,7 +307,7 @@
       <p><span class="hi">03</span>Envía el comprobante a un administrador del grupo. Sin comprobante el número se libera a los 15 minutos. Cuando finaliza, queda en verde y queda asegurado.</p>
       <p><span class="hi">04</span>Siempre hay ganador: se juega el premio sobre los números verdes y pagos. El premio es el 50% de lo recaudado.</p>
       <p><span class="hi">05</span>El sorteo es todos los días, lunes a domingo, a las 9:00 p. m. Quienes tienen número pago en ese tablero ven la cuenta 10 a 0 y al ganador (número, nombre, ciudad y premio del 50%).</p>
-      <p><span class="hi">06</span>Confeti negro y dorado, y a los 10 segundos el tablero se abre de nuevo con los números disponibles. Puedes retirar a Nequi o dejar el saldo para otro tablero.</p>
+      <p><span class="hi">06</span>A los 10 segundos el tablero se abre de nuevo. Si ganas, el administrador te envía el premio a tu Nequi.</p>
     </div>
     <div class="modal-actions"><button class="btn btn-gold btn-block" id="howClose" type="button">Entendido</button></div>
   </div>

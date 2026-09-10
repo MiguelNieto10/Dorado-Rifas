@@ -328,6 +328,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
   // ---------- 5. NAVEGACIÓN ENTRE VISTAS ----------
   function showView(name){
+    if(name === 'wallet') name = 'lobby';
     const next = document.getElementById('view-'+name);
     if(!next) return;
     currentView = name;
@@ -488,9 +489,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     document.getElementById('payDesc').textContent = 'Tablero de ' + fmt(value) + ' · ' + selectedNumbers.size + ' número(s)';
     document.getElementById('payNums').textContent = Array.from(selectedNumbers).sort().join(', ');
     document.getElementById('payTotal').textContent = fmt(total);
-    document.getElementById('payWalletSub').textContent = 'Disponible: ' + fmt(wallet.balance);
-    document.getElementById('payWallet').disabled = wallet.balance < total;
-    document.getElementById('payWallet').style.opacity = wallet.balance < total ? 0.45 : 1;
     openModal('modalPayment');
   }
 
@@ -500,13 +498,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     const nums = Array.from(selectedNumbers);
     const total = nums.length * value;
 
-    if(method === 'wallet'){
-      if(wallet.balance < total){ toast('Saldo insuficiente en tu billetera'); return; }
-      wallet.balance -= total;
-      addActivity('compra', 'Tablero ' + fmt(value) + ' · números ' + nums.join(', ') + ' (saldo billetera)', -total);
-    } else {
-      addActivity('compra', 'Tablero ' + fmt(value) + ' · números ' + nums.join(', ') + ' (Nequi)', 0);
-    }
+    addActivity('compra', 'Tablero ' + fmt(value) + ' · números ' + nums.join(', ') + ' (Nequi)', 0);
     saveWallet();
 
     nums.forEach(n=>{
@@ -538,12 +530,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     }
 
     saveCard(value);
-    if(method === 'wallet'){
-      closeModal();
-      toast('Pago con saldo. Envía el comprobante a un administrador si te lo piden. En verde queda asegurado.');
-      renderCardDetail(value);
-      return;
-    }
     const sorted = nums.slice().sort();
     document.getElementById('nequiPayNums').textContent = sorted.join(', ');
     document.getElementById('nequiPayAmount').textContent = fmt(total);
@@ -780,9 +766,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
     if(wonByUser && !creditedDraws[drawKey]){
       creditedDraws[drawKey] = true;
-      wallet.balance += prize;
-      addActivity('premio', 'Ganaste el sorteo del tablero ' + fmt(value) + ' (número ' + card.pendingWinner + ')', prize);
-      saveWallet();
     }
 
     if(!shouldWatchDraw(card)) return;
@@ -862,7 +845,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         '<div class="reveal-prize">' + fmt(prize) + '</div>' +
         '<p class="draw-msg reveal-meta">Premio: 50% de lo recaudado · ' + paidCount + ' números pagos<br>' + when + '</p>' +
         (wonByUser
-          ? '<p class="draw-msg" style="margin-top:10px;">Ya está en tu billetera. Úsalo en otro tablero o retíralo a Nequi.</p>'
+          ? '<p class="draw-msg" style="margin-top:10px;">El administrador te envía el premio a tu Nequi.</p>'
           : '<p class="draw-msg" style="margin-top:10px;">El tablero se abre de nuevo con los números disponibles.</p>') +
       '</div>' +
       shareRow;
@@ -949,12 +932,14 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
   // ---------- 11. BILLETERA: recargar / retirar ----------
   function renderWalletChip(){
-    document.getElementById('walletBalance').textContent = fmt(wallet.balance);
+    const el = document.getElementById('walletBalance');
+    if(el) el.textContent = fmt(wallet.balance);
   }
 
   function renderWalletView(){
-    document.getElementById('wvBalance').textContent = fmt(wallet.balance);
+    const bal = document.getElementById('wvBalance');
     const list = document.getElementById('activityList');
+    if(!bal || !list) return;
     if(!wallet.activity || wallet.activity.length === 0){
       list.innerHTML = '<div class="empty-note">Todavía no tienes movimientos.</div>';
       return;

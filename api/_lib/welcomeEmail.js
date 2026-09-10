@@ -36,7 +36,7 @@ export function welcomeText(username) {
     "",
     "5. El sorteo es todos los días, de lunes a domingo, a las 9:00 p. m., hora de Bogotá. Si tienes un número pago (verde) en ese tablero, ves la cuenta 10, 9, 8… hasta 0, y después el ganador: el número, el nombre, la ciudad y el premio.",
     "",
-    "6. A los 10 segundos el tablero se abre otra vez, con los números disponibles. Puedes dejar el saldo para jugar otro tablero o retirarlo a Nequi.",
+    "6. A los 10 segundos el tablero se abre otra vez, con los números disponibles. Si ganas, el administrador te envía el premio a tu Nequi.",
     "",
     "Si olvidas tu clave, en la pantalla de entrar usa “Olvidé mi clave” y te llega un correo para crear una nueva.",
     "",
@@ -76,7 +76,7 @@ export function welcomeHtml(username) {
               ${ruleBlock("3", "Me envías el comprobante a un administrador, en el grupo de WhatsApp. Si no llega el comprobante, ese número se libera a los 15 minutos y otra persona puede tomarlo. Cuando el administrador confirma, el número pasa a verde y queda asegurado: ya no se suelta y sí entra al sorteo.")}
               ${ruleBlock("4", "En el sorteo solo participan los números verdes y pagos. El 50% de lo recaudado en el tablero que elegiste jugar, según los números vendidos, puede ser tuyo. Si tu número no está en verde, no puedes ganar ese sorteo.")}
               ${ruleBlock("5", "El sorteo es todos los días, de lunes a domingo, a las 9:00 p. m., hora de Bogotá. Si tienes un número pago (verde) en ese tablero, ves la cuenta 10, 9, 8… hasta 0, y después el ganador: el número, el nombre, la ciudad y el premio.")}
-              ${ruleBlock("6", "A los 10 segundos el tablero se abre otra vez, con los números disponibles. Puedes dejar el saldo para jugar otro tablero o retirarlo a Nequi.")}
+              ${ruleBlock("6", "A los 10 segundos el tablero se abre otra vez, con los números disponibles. Si ganas, el administrador te envía el premio a tu Nequi.")}
               <p style="${p}">Si olvidas tu clave, en la pantalla de entrar usa “Olvidé mi clave” y te llega un correo para crear una nueva.</p>
             </td>
           </tr>
