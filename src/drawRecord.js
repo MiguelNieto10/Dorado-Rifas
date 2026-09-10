@@ -30,10 +30,21 @@ export function createDrawRecorder() {
     ctx.fillStyle = "#8a713a";
     ctx.font = "600 22px Jost, sans-serif";
     ctx.textAlign = "center";
-    ctx.fillText(text, 360, 160);
+    ctx.fillText(text, 360, 230);
   }
 
+  let logoImg = null;
   function brand() {
+    if (!logoImg) {
+      logoImg = new Image();
+      logoImg.src = "/logo.png";
+    }
+    if (logoImg.complete && logoImg.naturalWidth) {
+      const w = 176;
+      const h = w * (logoImg.naturalHeight / logoImg.naturalWidth);
+      ctx.drawImage(logoImg, 360 - w / 2, 12, w, h);
+      return;
+    }
     ctx.fillStyle = "#e8c877";
     ctx.font = "700 42px 'Cormorant Garamond', Georgia, serif";
     ctx.textAlign = "center";
@@ -43,6 +54,10 @@ export function createDrawRecorder() {
   return {
     start() {
       if (!mime) return false;
+      if (!logoImg) {
+        logoImg = new Image();
+        logoImg.src = "/logo.png";
+      }
       try {
         chunks.length = 0;
         const stream = canvas.captureStream(24);

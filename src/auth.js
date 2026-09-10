@@ -26,7 +26,7 @@ const UNLOCK_KEY = "dorado.session.unlock";
 
 export const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/TU-LINK-AQUI";
 
-function slugFromUsername(name) {
+export function slugFromUsername(name) {
   return String(name || "")
     .trim()
     .toLowerCase()
@@ -36,6 +36,20 @@ function slugFromUsername(name) {
 
 function emailFromUsername(name) {
   return slugFromUsername(name) + "@dorado-rifas.app";
+}
+
+function adminSlugs() {
+  const raw = import.meta.env.VITE_ADMIN_USERNAMES || "James_R";
+  return String(raw)
+    .split(",")
+    .map((s) => slugFromUsername(s))
+    .filter(Boolean);
+}
+
+export function isAdminAccount(profile, username) {
+  if (profile && profile.role === "admin") return true;
+  const slug = slugFromUsername(username || (profile && profile.username) || "");
+  return !!slug && adminSlugs().includes(slug);
 }
 
 function digitsPhone(raw) {
@@ -144,7 +158,7 @@ export function runAuthGate() {
     const gate = document.getElementById("authGate");
     if (!app) {
       if (gate) gate.hidden = true;
-      resolve({ uid: null, username: "Invitado", phone: "" });
+      resolve({ uid: null, username: "Invitado", phone: "", isAdmin: false });
       return;
     }
 
@@ -161,6 +175,7 @@ export function runAuthGate() {
         uid: user.uid,
         username: profile.username || user.displayName || "Jugador",
         phone: profile.phone || "",
+        isAdmin: isAdminAccount(profile, profile.username || user.displayName),
       });
     }
 
@@ -169,9 +184,24 @@ export function runAuthGate() {
       return snap.exists() ? snap.data() : { username: user.displayName || "", phone: "", joinedWhatsapp: false };
     }
 
-    async function afterSignedIn(user, { justRegistered } = {}) {
+    async function afterSignedIn(user, { justRegistered, adminAttempt } = {}) {
       const profile = await loadProfile(user);
-      const needWa = !profile.joinedWhatsapp;
+      const adminOk = isAdminAccount(profile, profile.username || user.displayName);
+      if (adminAttempt && !adminOk) {
+        setAuthError("Esta cuenta no es de administrador. Entra con “Ya tengo cuenta” para jugar.");
+        finishing = false;
+        showStep("form");
+        if (gate) gate.hidden = false;
+        return { user, profile, wait: true };
+      }
+      if (adminOk && profile.role !== "admin") {
+        const next = { ...profile, role: "admin" };
+        await setDoc(doc(firestore, "users", user.uid), next, { merge: true });
+        sessionProfile = next;
+      } else {
+        sessionProfile = profile;
+      }
+      const needWa = !adminOk && !profile.joinedWhatsapp;
       const needUnlock = localStorage.getItem(PASSKEY_UID_KEY) === user.uid && !sessionStorage.getItem(UNLOCK_KEY);
 
       if (needUnlock && !justRegistered) {
@@ -183,8 +213,8 @@ export function runAuthGate() {
         showStep("whatsapp");
         return { user, profile, wait: true };
       }
-      await finish(user, profile);
-      return { user, profile, wait: false };
+      await finish(user, sessionProfile || profile);
+      return { user, profile: sessionProfile || profile, wait: false };
     }
 
     let sessionUser = null;
@@ -205,28 +235,44 @@ export function runAuthGate() {
       await afterSignedIn(user, { justRegistered: false });
     });
 
+    function authMode() {
+      if (document.getElementById("authModeAdmin").classList.contains("active")) return "admin";
+      if (document.getElementById("authModeLogin").classList.contains("active")) return "login";
+      return "register";
+    }
+
+    function setAuthMode(mode) {
+      document.getElementById("authModeRegister").classList.toggle("active", mode === "register");
+      document.getElementById("authModeLogin").classList.toggle("active", mode === "login");
+      document.getElementById("authModeAdmin").classList.toggle("active", mode === "admin");
+      const lead = document.querySelector("[data-auth-step='form'] .auth-lead");
+      const title = document.querySelector("[data-auth-step='form'] h2");
+      if (mode === "admin") {
+        if (title) title.textContent = "Entrar como administrador";
+        if (lead) lead.textContent = "Usa tu usuario y clave. Los jugadores no ven estos paneles.";
+      } else {
+        if (title) title.textContent = "Entra para jugar";
+        if (lead) lead.textContent = "Crea tu cuenta o inicia sesión. Así tus números y tu billetera quedan a tu nombre.";
+      }
+      setAuthError("");
+      syncRegisterFields();
+    }
+
     function syncRegisterFields() {
-      const isRegister = document.getElementById("authModeRegister").classList.contains("active");
+      const mode = authMode();
+      const isRegister = mode === "register";
       document.getElementById("authPhoneWrap").hidden = !isRegister;
-      document.getElementById("authSubmit").textContent = isRegister ? "Crear cuenta" : "Entrar";
+      document.getElementById("authSubmit").textContent =
+        mode === "admin" ? "Entrar como administrador" : isRegister ? "Crear cuenta" : "Entrar";
       canUseBiometrics().then((ok) => {
         document.getElementById("authUseBioWrap").hidden = !(ok && isRegister);
         document.getElementById("authUnlockBio").hidden = !ok;
       });
     }
 
-    document.getElementById("authModeRegister").addEventListener("click", () => {
-      document.getElementById("authModeRegister").classList.add("active");
-      document.getElementById("authModeLogin").classList.remove("active");
-      setAuthError("");
-      syncRegisterFields();
-    });
-    document.getElementById("authModeLogin").addEventListener("click", () => {
-      document.getElementById("authModeLogin").classList.add("active");
-      document.getElementById("authModeRegister").classList.remove("active");
-      setAuthError("");
-      syncRegisterFields();
-    });
+    document.getElementById("authModeRegister").addEventListener("click", () => setAuthMode("register"));
+    document.getElementById("authModeLogin").addEventListener("click", () => setAuthMode("login"));
+    document.getElementById("authModeAdmin").addEventListener("click", () => setAuthMode("admin"));
 
     document.getElementById("authForm").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -235,7 +281,9 @@ export function runAuthGate() {
       const password = document.getElementById("authPassword").value;
       const phone = digitsPhone(document.getElementById("authPhone").value);
       const remember = document.getElementById("authRemember").checked;
-      const isRegister = document.getElementById("authModeRegister").classList.contains("active");
+      const mode = authMode();
+      const isRegister = mode === "register";
+      const adminAttempt = mode === "admin";
       const slug = slugFromUsername(username);
 
       if (slug.length < 3) {
@@ -244,6 +292,10 @@ export function runAuthGate() {
       }
       if (password.length < 6) {
         setAuthError("La clave debe tener al menos 6 caracteres.");
+        return;
+      }
+      if (adminAttempt && !isAdminAccount({}, username)) {
+        setAuthError("Ese usuario no está en la lista de administrador.");
         return;
       }
       if (isRegister && (phone.length < 10 || phone.length > 12)) {
@@ -282,7 +334,7 @@ export function runAuthGate() {
         } else {
           const cred = await signInWithEmailAndPassword(auth, email, password);
           sessionUser = cred.user;
-          await afterSignedIn(cred.user, { justRegistered: false });
+          await afterSignedIn(cred.user, { justRegistered: false, adminAttempt });
         }
       } catch (err) {
         setAuthError(firebaseErrorEs(err));

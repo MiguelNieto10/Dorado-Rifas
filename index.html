@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dorado Rifas</title>
-<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="/src/styles.css">
@@ -13,8 +14,7 @@
 <div class="auth-gate" id="authGate">
   <div class="auth-card">
     <div class="auth-brand">
-      <span class="brand-mark">Dorado</span>
-      <span class="brand-sub">RIFAS &amp; SORTEOS</span>
+      <img class="auth-logo" src="/logo.png" alt="Dorado — Gana al Instante">
     </div>
 
     <p class="auth-error" id="authError" hidden></p>
@@ -25,6 +25,7 @@
       <div class="auth-tabs">
         <button type="button" class="active" id="authModeRegister">Crear cuenta</button>
         <button type="button" id="authModeLogin">Ya tengo cuenta</button>
+        <button type="button" id="authModeAdmin">Administrador</button>
       </div>
       <form id="authForm">
         <label>Nombre de usuario
@@ -76,14 +77,15 @@
 </div>
 
 <header class="topbar">
-  <div class="brand">
-    <span class="brand-mark">Dorado</span>
-    <span class="brand-sub">RIFAS &amp; SORTEOS</span>
-  </div>
+  <button type="button" class="brand" data-nav="lobby" title="Dorado">
+    <img class="brand-logo" src="/logo.png" alt="Dorado — Gana al Instante">
+  </button>
   <nav class="nav">
     <button type="button" data-nav="lobby" class="active">Cartones</button>
     <button type="button" data-nav="wallet">Billetera</button>
     <button type="button" data-nav="historial">Ganadores</button>
+    <button type="button" class="admin-only" data-nav="admin-users">Usuarios</button>
+    <button type="button" class="admin-only" data-nav="admin-caja">Caja</button>
     <button type="button" id="howBtn2">Cómo funciona</button>
   </nav>
   <button class="wallet-chip" id="walletChip" type="button" title="Ir a mi billetera">
@@ -91,6 +93,24 @@
     <span><span class="lbl">Saldo</span><span class="amt" id="walletBalance">$0</span></span>
   </button>
 </header>
+
+<div class="admin-bar">
+  <button type="button" data-nav="lobby">Juego</button>
+  <button type="button" data-nav="admin-users">Usuarios</button>
+  <button type="button" data-nav="admin-caja">Caja</button>
+  <label class="admin-filter-item">Periodo
+    <select id="adminRange">
+      <option value="all">Todo</option>
+      <option value="day">Día</option>
+      <option value="month">Mes</option>
+      <option value="year">Año</option>
+    </select>
+  </label>
+  <label class="admin-filter-item">Fecha
+    <input id="adminDate" type="date">
+  </label>
+  <button class="btn btn-outline btn-sm" type="button" id="adminReload">Actualizar</button>
+</div>
 
 <main>
   <!-- ===================== VISTA: LOBBY ===================== -->
@@ -186,6 +206,22 @@
       <p>Todos los sorteos realizados en Dorado, con fecha, hora, nombre y ciudad del ganador — para que quede constancia de que los premios sí se entregan.</p>
     </div>
     <div id="historialList"></div>
+  </section>
+
+  <section id="view-admin-users" class="view" hidden>
+    <div class="hero" style="padding-top:24px; padding-bottom:8px;">
+      <h1 style="font-size:clamp(1.6rem,3.4vw,2.2rem);">Usuarios</h1>
+      <p>Lista de cuentas. El indicador verde aparece si esa persona tiene números en un cartón que está abierto ahora. <span class="admin-count-line">Cuentas: <span class="mono" id="adminUserCount">0</span></span></p>
+    </div>
+    <div id="adminUserList"></div>
+  </section>
+
+  <section id="view-admin-caja" class="view" hidden>
+    <div class="hero" style="padding-top:24px; padding-bottom:8px;">
+      <h1 style="font-size:clamp(1.6rem,3.4vw,2.2rem);">Caja</h1>
+      <p>Números pagos, recaudo y tu ganancia (el 50% de lo recaudado). El periodo se elige en la barra de administrador.</p>
+    </div>
+    <div id="adminCajaBody"></div>
   </section>
 </main>
 

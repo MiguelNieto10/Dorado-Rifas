@@ -1,6 +1,7 @@
 import { connectFirestore } from "./db.js";
 import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
 import { createDrawRecorder } from "./drawRecord.js";
+import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
 /* ================================================================
    DORADO — RIFAS & SORTEOS (prototipo con dinero simulado)
@@ -107,6 +108,7 @@ import { createDrawRecorder } from "./drawRecord.js";
   let db = null; // se llena si la capacidad "db" está disponible
   let usingDb = false;
   let currentUid = null;
+  let isAdmin = false;
   const cardsCache = {};
   let wallet = seedWallet();
   let currentView = 'lobby';
@@ -256,14 +258,19 @@ import { createDrawRecorder } from "./drawRecord.js";
 
   // ---------- 5. NAVEGACIÓN ENTRE VISTAS ----------
   function showView(name){
+    const next = document.getElementById('view-'+name);
+    if(!next) return;
     currentView = name;
     document.querySelectorAll('.view').forEach(v=>v.hidden = true);
-    document.getElementById('view-'+name).hidden = false;
-    document.querySelectorAll('.nav button[data-nav]').forEach(b=>{
+    next.hidden = false;
+    document.querySelectorAll('button[data-nav]').forEach(b=>{
       b.classList.toggle('active', b.dataset.nav === name);
     });
     if(name === 'wallet') renderWalletView();
     if(name === 'historial') renderHistorialView();
+    if(isAdmin && (name === 'admin-users' || name === 'admin-caja')){
+      refreshAdminViews(cardsCache);
+    }
     window.scrollTo({top:0, behavior:'instant'});
   }
 
@@ -422,9 +429,30 @@ import { createDrawRecorder } from "./drawRecord.js";
     }
     saveWallet();
 
-    nums.forEach(n=>{ card.numbers[n] = { owner: PROFILE.name, city: PROFILE.city, isUser:true }; });
+    nums.forEach(n=>{
+      card.numbers[n] = {
+        owner: PROFILE.name,
+        city: PROFILE.city,
+        isUser: true,
+        ownerUid: currentUid || null,
+        boughtAt: Date.now()
+      };
+    });
     card.sold += nums.length;
     selectedNumbers.clear();
+
+    if(usingDb && currentUid){
+      db.doc('plays/' + currentUid + '-' + Date.now()).set({
+        uid: currentUid,
+        username: PROFILE.name,
+        cardValue: value,
+        numbers: nums,
+        count: nums.length,
+        amount: total,
+        method,
+        ts: Date.now()
+      }).catch(()=>{});
+    }
 
     if(card.sold >= 100){
       startCountdown(card);
@@ -590,7 +618,7 @@ import { createDrawRecorder } from "./drawRecord.js";
       saveWallet();
     }
 
-    card.history = [{ winningNumber:card.pendingWinner, winnerName, winnerCity, prize, wonByUser, ts:Date.now() }]
+    card.history = [{ winningNumber:card.pendingWinner, winnerName, winnerCity, prize, wonByUser, ts:Date.now(), winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null }]
       .concat(card.history||[]).slice(0,5);
     if(currentView === 'historial') renderHistorialView();
 
@@ -612,6 +640,7 @@ import { createDrawRecorder } from "./drawRecord.js";
         winningNumber: card.pendingWinner,
         winnerName,
         winnerCity,
+        winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null,
         prize,
         ts: Date.now(),
         newCardOpen: true
@@ -840,7 +869,7 @@ import { createDrawRecorder } from "./drawRecord.js";
       const stuckToast = document.getElementById('toast');
       if(stuckToast && !stuckToast.hidden){ stuckToast.hidden = true; }
 
-      const navBtn = t.closest('.nav button[data-nav]');
+      const navBtn = t.closest('button[data-nav]');
       if(navBtn){ showView(navBtn.dataset.nav); return; }
 
       if(t.closest('#walletChip')){ showView('wallet'); return; }
@@ -944,7 +973,17 @@ import { createDrawRecorder } from "./drawRecord.js";
   runAuthGate().then((session)=>{
     PROFILE.name = session.username || 'Jugador';
     currentUid = session.uid;
+    isAdmin = !!session.isAdmin;
+    document.body.classList.toggle('is-admin', isAdmin);
     seedLocalIfEmpty();
     renderAll();
     initDb();
+    if(isAdmin){
+      const dateEl = document.getElementById('adminDate');
+      if(dateEl && !dateEl.value){
+        const now = new Date();
+        dateEl.value = now.getFullYear() + '-' + pad2(now.getMonth()+1) + '-' + pad2(now.getDate());
+      }
+      bindAdminFilters(() => cardsCache);
+    }
   });
