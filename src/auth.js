@@ -24,7 +24,7 @@ const PASSKEY_ID_KEY = "dorado.passkey.cred";
 const PASSKEY_UID_KEY = "dorado.passkey.uid";
 const UNLOCK_KEY = "dorado.session.unlock";
 
-export const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/TU-LINK-AQUI";
+export const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/B6ISmgPJ0gIGEum0uR0Mip";
 
 export function slugFromUsername(name) {
   return String(name || "")
