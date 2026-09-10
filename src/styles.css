@@ -377,7 +377,15 @@
   .demo-tool .lbl b{color:var(--text-dim); display:block; font-size:0.68rem; letter-spacing:0.08em; text-transform:uppercase; margin-bottom:2px;}
   .demo-tool .controls{display:flex; gap:8px;}
 
-  .history-strip{display:flex; gap:10px; overflow-x:auto; padding-bottom:4px; margin-top:22px;}
+  .history-strip{
+    overflow:hidden; margin-top:14px; padding:4px 0 8px;
+    mask-image:linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+    -webkit-mask-image:linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  }
+  .history-track{
+    display:flex; gap:10px; width:max-content;
+    animation:history-marquee linear infinite;
+  }
   .history-chip{
     flex:0 0 auto; background:var(--surface); border:1px solid var(--border-soft); border-radius:var(--radius-m);
     padding:10px 14px; min-width:170px;
@@ -385,6 +393,15 @@
   .history-chip .hn{font-family:var(--font-mono); color:var(--gold-bright); font-weight:700;}
   .history-chip .hw{font-size:0.78rem; color:var(--text-dim); margin-top:2px;}
   .history-chip .hp{font-size:0.72rem; color:var(--text-faint); margin-top:4px;}
+  .history-chip .hd{font-size:0.68rem; color:var(--gold-dim); margin-top:6px; letter-spacing:0.04em; text-transform:uppercase;}
+  @keyframes history-marquee{
+    from{ transform:translateX(0); }
+    to{ transform:translateX(-50%); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .history-track{animation:none;}
+    .history-strip{overflow-x:auto;}
+  }
 
   /* ============================================================
      BILLETERA

@@ -562,15 +562,29 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
     const histWrap = document.getElementById('historySection');
     const strip = document.getElementById('historyStrip');
-    if(card.history && card.history.length){
+    const hist = (card.history || []).slice().sort((a,b)=> (b.ts||0) - (a.ts||0));
+    if(hist.length){
       histWrap.hidden = false;
-      strip.innerHTML = card.history.map(h=>
-        '<div class="history-chip"><div class="hn">Nº ' + h.winningNumber + '</div>' +
-        '<div class="hw">' + (h.wonByUser ? '🏆 Tú' : h.winnerName) + '</div>' +
-        '<div class="hp">' + fmt(h.prize) + ' · ' + h.winnerCity + '</div></div>'
-      ).join('');
+      const histKey = value + ':' + hist.map((h)=> (h.ts||'') + '-' + (h.winningNumber||'')).join('|');
+      if(strip.dataset.histKey !== histKey){
+        strip.dataset.histKey = histKey;
+        const chips = hist.map((h)=>{
+          const when = h.ts ? new Date(h.ts).toLocaleDateString('es-CO', { day:'numeric', month:'short' }) : '';
+          return '<article class="history-chip">' +
+            '<div class="hn">Nº ' + h.winningNumber + '</div>' +
+            '<div class="hw">' + (h.wonByUser ? 'Tú' : (h.winnerName || '—')) + '</div>' +
+            '<div class="hp">' + fmt(h.prize) + (h.winnerCity ? ' · ' + h.winnerCity : '') + '</div>' +
+            (when ? '<div class="hd">' + when + '</div>' : '') +
+          '</article>';
+        }).join('');
+        const copies = hist.length < 4 ? 4 : 2;
+        const seconds = Math.max(22, hist.length * copies * 4);
+        strip.innerHTML = '<div class="history-track" style="animation-duration:' + seconds + 's">' + chips.repeat(copies) + '</div>';
+      }
     } else {
       histWrap.hidden = true;
+      strip.innerHTML = '';
+      delete strip.dataset.histKey;
     }
   }
 
@@ -839,7 +853,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       card.status = 'revealed';
       card.revealEndsAt = Date.now() + REVEAL_HOLD_MS;
       card.history = [{ winningNumber:card.pendingWinner, winnerName, winnerCity, prize, wonByUser:false, ts:Date.now(), winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null }]
-        .concat(card.history||[]).slice(0,5);
+        .concat(card.history||[]).slice(0, 365);
       saveCard(value);
       if(usingDb && db){
         db.doc('draws/' + drawKey).set({
