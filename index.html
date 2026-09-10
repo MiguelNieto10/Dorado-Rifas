@@ -261,8 +261,14 @@
     <p class="sub" style="margin-top:8px;">Envía el comprobante de pago a un administrador del grupo para asegurar tu número y poder reclamar el premio. Sin comprobante, el número se libera a los 15 minutos. Queda asegurado cuando finaliza y aparece en verde.</p>
     <div class="modal-row"><span class="k">Números</span><span class="v" id="payNums">—</span></div>
     <div class="modal-row"><span class="k">Total</span><span class="v" id="payTotal">$0</span></div>
+    <div class="nequi-box">
+      <p class="nequi-box-k">Cuenta Nequi de Dorado</p>
+      <p class="nequi-box-num" id="nequiAccountDisplay">3150505240</p>
+      <button class="btn btn-outline btn-sm" type="button" id="copyNequiBtn" data-copy-nequi="3150505240">Copiar número</button>
+      <p class="nequi-box-hint">Abre Nequi, envía el total a este número y después pulsa Pagar con Nequi. Tus números quedan 15 minutos reservados. Manda el comprobante a un administrador del grupo para que pasen a verde.</p>
+    </div>
     <button class="pay-option" id="payNequi" type="button">
-      <span><b>Pagar con Nequi</b><span>Transferencia · envía el comprobante al grupo</span></span>
+      <span><b>Pagar con Nequi</b><span>Reservar y pagar a 3150505240</span></span>
       <span>→</span>
     </button>
     <button class="pay-option" id="payWallet" type="button">
@@ -274,9 +280,25 @@
     </div>
   </div>
 
+  <div class="modal" id="modalNequiPay" hidden>
+    <h3>Paga a Nequi de Dorado</h3>
+    <p class="sub">Tus números ya están reservados 15 minutos. Completa el envío ahora para que un administrador los ponga en verde.</p>
+    <div class="modal-row"><span class="k">Números</span><span class="v" id="nequiPayNums">—</span></div>
+    <div class="modal-row"><span class="k">Valor a enviar</span><span class="v" id="nequiPayAmount">$0</span></div>
+    <div class="nequi-box">
+      <p class="nequi-box-k">Cuenta oficial Nequi</p>
+      <p class="nequi-box-num">3150505240</p>
+      <button class="btn btn-gold btn-sm" type="button" id="copyNequiBtn2" data-copy-nequi="3150505240">Copiar 3150505240</button>
+      <p class="nequi-box-hint">1. Abre Nequi en tu celular.<br>2. Envía exactamente ese valor a <strong>3150505240</strong>.<br>3. En el grupo de WhatsApp, manda el comprobante a un administrador.<br>4. Cuando confirmen, tu número pasa a verde y queda asegurado. Si no llega el comprobante, a los 15 minutos se libera.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gold btn-block" id="nequiPayDone" type="button">Entendido, voy a pagar</button>
+    </div>
+  </div>
+
   <div class="modal" id="modalDeposit" hidden>
     <h3>Recargar saldo</h3>
-    <p class="sub">Agrega saldo a tu billetera con Nequi. Luego envía el comprobante a un administrador del grupo.</p>
+    <p class="sub">Envía el recargo a la Nequi de Dorado <strong>3150505240</strong> y luego pulsa Recargar. Manda el comprobante a un administrador del grupo.</p>
     <div class="amount-chips">
       <button class="chip-btn" data-amt="20000" type="button">+$20.000</button>
       <button class="chip-btn" data-amt="50000" type="button">+$50.000</button>

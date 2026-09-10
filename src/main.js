@@ -481,7 +481,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     document.getElementById('selTotal').textContent = fmt(selectedNumbers.size * value);
   }
 
-  // ---------- 8. COMPRA Y PAGO (simulado) ----------
+  const NEQUI_DORADO = '3150505240';
   function openPaymentModal(){
     const value = openCardValue;
     const total = selectedNumbers.size * value;
@@ -538,8 +538,29 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     }
 
     saveCard(value);
-    closeModal();
-    toast('Reservado 15 min. Envía el comprobante a un administrador del grupo. En verde queda asegurado.');
+    if(method === 'wallet'){
+      closeModal();
+      toast('Pago con saldo. Envía el comprobante a un administrador si te lo piden. En verde queda asegurado.');
+      renderCardDetail(value);
+      return;
+    }
+    const sorted = nums.slice().sort();
+    document.getElementById('nequiPayNums').textContent = sorted.join(', ');
+    document.getElementById('nequiPayAmount').textContent = fmt(total);
+    openModal('modalNequiPay');
+    renderCardDetail(value);
+  }
+
+  function copyNequiNumber(){
+    const n = NEQUI_DORADO;
+    const done = () => toast('Número Nequi copiado: ' + n);
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(n).then(done).catch(()=>{
+        window.prompt('Copia este número Nequi de Dorado:', n);
+      });
+    } else {
+      window.prompt('Copia este número Nequi de Dorado:', n);
+    }
   }
 
   // ---------- 9. SIMULAR OTROS JUGADORES (herramienta de prueba) ----------
@@ -1085,6 +1106,11 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       if(t.closest('#payBtn')){ openPaymentModal(); return; }
       if(t.closest('#payCancel')){ closeModal(); return; }
       if(t.closest('#payNequi')){ confirmPurchase('nequi'); return; }
+      if(t.closest('[data-copy-nequi]') || t.closest('#copyNequiBtn') || t.closest('#copyNequiBtn2')){
+        copyNequiNumber();
+        return;
+      }
+      if(t.closest('#nequiPayDone')){ closeModal(); return; }
       if(t.closest('#payWallet')){
         if(wallet.balance >= selectedNumbers.size * openCardValue) confirmPurchase('wallet');
         return;
