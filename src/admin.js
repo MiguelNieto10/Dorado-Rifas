@@ -100,12 +100,47 @@ export async function loadAdminBundle(cardsCache) {
   return { users, plays, draws, resets, cardsCache: cardsCache || {} };
 }
 
+function playNumKey(play, num) {
+  return String(play.uid || play.username || "") + ":" + String(play.cardValue) + ":" + String(num).padStart(2, "0");
+}
+
+function collapsePlays(plays) {
+  const sorted = (plays || []).slice().sort((a, b) => (Number(b.ts) || 0) - (Number(a.ts) || 0));
+  const seen = new Set();
+  const kept = [];
+  sorted.forEach((p) => {
+    const nums = (p.numbers || []).map((n) => String(n).padStart(2, "0"));
+    if (!nums.length) {
+      kept.push(p);
+      return;
+    }
+    const fresh = nums.filter((n) => {
+      const key = playNumKey(p, n);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    if (!fresh.length) return;
+    const all = nums.length || Number(p.count) || 1;
+    const amountEach = (Number(p.amount) || 0) / all;
+    kept.push({
+      ...p,
+      numbers: fresh,
+      count: fresh.length,
+      amount: Math.round(amountEach * fresh.length),
+    });
+  });
+  return kept;
+}
+
 function summarizeUser(user, uid, bundle, mode, dateStr) {
   const username = user.username || "—";
-  const plays = bundle.plays.filter((p) => {
-    const mine = (p.uid && p.uid === uid) || slugFromUsername(p.username) === slugFromUsername(username);
-    return mine && inRange(p.ts, mode, dateStr);
-  });
+  const plays = collapsePlays(
+    bundle.plays.filter((p) => {
+      const mine = (p.uid && p.uid === uid) || slugFromUsername(p.username) === slugFromUsername(username);
+      return mine && inRange(p.ts, mode, dateStr);
+    })
+  );
   const numbersPaid = plays.reduce((n, p) => n + (Number(p.count) || (p.numbers || []).length || 0), 0);
   const spent = plays.reduce((n, p) => n + (Number(p.amount) || 0), 0);
   const cardsPlayed = new Set(plays.map((p) => p.cardValue).filter((v) => v != null)).size;
@@ -212,7 +247,7 @@ function renderUsers(listEl, rows) {
 
 function renderCaja(root, bundle, mode, dateStr) {
   const draws = bundle.draws.filter((d) => inRange(d.ts, mode, dateStr));
-  const plays = bundle.plays.filter((p) => inRange(p.ts, mode, dateStr));
+  const plays = collapsePlays(bundle.plays.filter((p) => inRange(p.ts, mode, dateStr)));
   const closedNumbers = draws.reduce((n, d) => {
     if (d.paidCount != null) return n + Number(d.paidCount);
     if (d.collected != null && d.cardValue) return n + Math.round(Number(d.collected) / Number(d.cardValue));

@@ -774,7 +774,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     selectedNumbers.clear();
 
     if(usingDb && currentUid){
-      db.doc('plays/' + currentUid + '-' + Date.now()).set({
+      const playId = currentUid + '-' + value + '-' + nums.map((n) => String(n).padStart(2, '0')).sort().join('-');
+      db.doc('plays/' + playId).set({
         uid: currentUid,
         username: PROFILE.name,
         cardValue: value,
