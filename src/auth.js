@@ -14,6 +14,8 @@ import {
   browserSessionPersistence,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signInWithCustomToken,
   onAuthStateChanged,
   updateProfile,
   deleteUser,
@@ -38,6 +40,17 @@ export function slugFromUsername(name) {
 
 function emailFromUsername(name) {
   return slugFromUsername(name) + "@dorado-rifas.app";
+}
+
+function emailDocId(email) {
+  return String(email || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\//g, "_");
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
 }
 
 function adminSlugs() {
@@ -66,7 +79,8 @@ function digitsPhone(raw) {
 
 function firebaseErrorEs(err) {
   const code = err && err.code;
-  if (code === "auth/email-already-in-use") return "Ese nombre de usuario ya existe. Prueba otro o inicia sesión.";
+  if (code === "auth/email-already-in-use") return "Ese correo o usuario ya existe. Prueba otro o inicia sesión.";
+  if (code === "auth/invalid-email") return "Escribe un correo válido.";
   if (code === "auth/weak-password") return "La clave debe tener al menos 6 caracteres.";
   if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
     return "Nombre de usuario o clave incorrectos.";
@@ -105,7 +119,7 @@ export async function canUseBiometrics() {
   }
 }
 
-async function enrollPasskey(uid, username) {
+async function enrollPasskey(firestore, uid, username) {
   const cred = await navigator.credentials.create({
     publicKey: {
       challenge: crypto.getRandomValues(new Uint8Array(32)),
@@ -121,14 +135,36 @@ async function enrollPasskey(uid, username) {
       ],
       authenticatorSelection: {
         authenticatorAttachment: "platform",
+        residentKey: "preferred",
         userVerification: "required",
       },
       timeout: 60000,
     },
   });
   if (!cred) throw new Error("No se pudo guardar la huella.");
-  localStorage.setItem(PASSKEY_ID_KEY, bufToB64url(cred.rawId));
+  const credId = bufToB64url(cred.rawId);
+  localStorage.setItem(PASSKEY_ID_KEY, credId);
   localStorage.setItem(PASSKEY_UID_KEY, uid);
+  if (firestore) {
+    await setDoc(doc(firestore, "passkeys", credId), { uid, username, createdAt: Date.now() });
+    await setDoc(doc(firestore, "users", uid), { passkeyCredId: credId }, { merge: true });
+  }
+}
+
+async function assertPasskey() {
+  const rawId = localStorage.getItem(PASSKEY_ID_KEY);
+  const publicKey = {
+    challenge: crypto.getRandomValues(new Uint8Array(32)),
+    rpId: location.hostname,
+    userVerification: "required",
+    timeout: 60000,
+  };
+  if (rawId) {
+    publicKey.allowCredentials = [{ type: "public-key", id: b64urlToBuf(rawId), transports: ["internal"] }];
+  }
+  const cred = await navigator.credentials.get({ publicKey });
+  if (!cred) throw new Error("No se reconoció la huella.");
+  return bufToB64url(cred.rawId);
 }
 
 function showStep(name) {
@@ -188,6 +224,23 @@ export function runAuthGate() {
       return snap.exists() ? snap.data() : { username: user.displayName || "", phone: "", joinedWhatsapp: false };
     }
 
+    async function resolveAuthEmail(input) {
+      const trimmed = String(input || "").trim();
+      if (isValidEmail(trimmed)) return trimmed.toLowerCase();
+      const slug = slugFromUsername(trimmed);
+      if (!slug) return "";
+      const uname = await getDoc(doc(firestore, "usernames", slug));
+      if (uname.exists()) {
+        const data = uname.data() || {};
+        if (data.email) return String(data.email).toLowerCase();
+        if (data.uid) {
+          const profile = await getDoc(doc(firestore, "users", data.uid));
+          if (profile.exists() && profile.data().email) return String(profile.data().email).toLowerCase();
+        }
+      }
+      return emailFromUsername(trimmed);
+    }
+
     async function afterSignedIn(user, { justRegistered, adminAttempt } = {}) {
       const profile = await loadProfile(user);
       const adminOk = isAdminAccount(profile, profile.username || user.displayName);
@@ -221,11 +274,23 @@ export function runAuthGate() {
 
     async function abortIncompleteRegistration(user, profile) {
       const slug = slugFromUsername((profile && profile.username) || (user && user.displayName) || "");
+      const email = profile && profile.email;
+      const credId = (profile && profile.passkeyCredId) || localStorage.getItem(PASSKEY_ID_KEY);
       try {
         if (slug) await deleteDoc(doc(firestore, "usernames", slug));
       } catch { /* ignore */ }
       try {
+        if (email) await deleteDoc(doc(firestore, "emails", emailDocId(email)));
+      } catch { /* ignore */ }
+      try {
+        if (credId) await deleteDoc(doc(firestore, "passkeys", credId));
+      } catch { /* ignore */ }
+      try {
         if (user && user.uid) await deleteDoc(doc(firestore, "users", user.uid));
+      } catch { /* ignore */ }
+      try {
+        localStorage.removeItem(PASSKEY_ID_KEY);
+        localStorage.removeItem(PASSKEY_UID_KEY);
       } catch { /* ignore */ }
       try {
         if (user) await deleteUser(user);
@@ -303,6 +368,8 @@ export function runAuthGate() {
     function syncRegisterFields() {
       const mode = authMode();
       const isRegister = mode === "register";
+      const emailWrap = document.getElementById("authEmailWrap");
+      if (emailWrap) emailWrap.hidden = !isRegister;
       document.getElementById("authPhoneWrap").hidden = !isRegister;
       const forgot = document.getElementById("authForgotWrap");
       if (forgot) forgot.hidden = mode !== "login";
@@ -310,6 +377,8 @@ export function runAuthGate() {
         mode === "admin" ? "Entrar como administrador" : isRegister ? "Crear cuenta" : "Entrar";
       canUseBiometrics().then((ok) => {
         document.getElementById("authUseBioWrap").hidden = !(ok && isRegister);
+        const loginBio = document.getElementById("authBioLoginBtn");
+        if (loginBio) loginBio.hidden = !(ok && mode === "login");
       });
     }
 
@@ -321,6 +390,7 @@ export function runAuthGate() {
       setAuthError("");
       const username = document.getElementById("authUsername").value.trim();
       const password = document.getElementById("authPassword").value;
+      const emailInput = (document.getElementById("authEmail") && document.getElementById("authEmail").value.trim()) || "";
       const phone = digitsPhone(document.getElementById("authPhone").value);
       const remember = document.getElementById("authRemember").checked;
       const mode = authMode();
@@ -340,6 +410,10 @@ export function runAuthGate() {
         setAuthError("Ese usuario no está en la lista de administrador.");
         return;
       }
+      if (isRegister && !isValidEmail(emailInput)) {
+        setAuthError("Escribe un correo válido. Ahí te llega el mensaje si olvidas la clave.");
+        return;
+      }
       if (isRegister && (phone.length < 10 || phone.length > 12)) {
         setAuthError("Escribe un número de celular válido (10 dígitos).");
         return;
@@ -348,33 +422,40 @@ export function runAuthGate() {
       try {
         authSubmitInFlight = true;
         await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
-        const email = emailFromUsername(username);
         if (isRegister) {
           if (isAdminAccount({}, username)) {
             setAuthError("Ese usuario está reservado. Entra como jugador con otro nombre, o usa el enlace de administrador.");
             return;
           }
+          const email = emailInput.toLowerCase();
           const taken = await getDoc(doc(firestore, "usernames", slug));
           if (taken.exists()) {
             setAuthError("Ese nombre de usuario ya existe. Prueba otro o inicia sesión.");
             return;
           }
+          const emailTaken = await getDoc(doc(firestore, "emails", emailDocId(email)));
+          if (emailTaken.exists()) {
+            setAuthError("Ese correo ya está en una cuenta. Inicia sesión o restablece la clave.");
+            return;
+          }
           initialAuthHandled = true;
           const cred = await createUserWithEmailAndPassword(auth, email, password);
           await updateProfile(cred.user, { displayName: username.trim() });
-          await setDoc(doc(firestore, "usernames", slug), { uid: cred.user.uid });
+          await setDoc(doc(firestore, "usernames", slug), { uid: cred.user.uid, email });
+          await setDoc(doc(firestore, "emails", emailDocId(email)), { uid: cred.user.uid, slug });
           await setDoc(doc(firestore, "users", cred.user.uid), {
             username: username.trim(),
+            email,
             phone,
             joinedWhatsapp: false,
             registrationComplete: false,
             createdAt: Date.now(),
           });
           sessionUser = cred.user;
-          sessionProfile = { username: username.trim(), phone, joinedWhatsapp: false, registrationComplete: false };
+          sessionProfile = { username: username.trim(), email, phone, joinedWhatsapp: false, registrationComplete: false };
           if (document.getElementById("authUseBio").checked) {
             try {
-              await enrollPasskey(cred.user.uid, username.trim());
+              await enrollPasskey(firestore, cred.user.uid, username.trim());
             } catch {
               setAuthError("Cuenta creada. No se pudo guardar la huella; puedes entrar con tu clave.");
             }
@@ -382,6 +463,7 @@ export function runAuthGate() {
           await afterSignedIn(cred.user, { justRegistered: true });
         } else {
           initialAuthHandled = true;
+          const email = adminAttempt ? emailFromUsername(username) : await resolveAuthEmail(username);
           const cred = await signInWithEmailAndPassword(auth, email, password);
           sessionUser = cred.user;
           await afterSignedIn(cred.user, { justRegistered: false, adminAttempt });
@@ -396,7 +478,7 @@ export function runAuthGate() {
     document.getElementById("authBioYes").addEventListener("click", async () => {
       setAuthError("");
       try {
-        await enrollPasskey(sessionUser.uid, sessionProfile.username);
+        await enrollPasskey(firestore, sessionUser.uid, sessionProfile.username);
         if (!sessionProfile.joinedWhatsapp || sessionProfile.registrationComplete === false) showStep("whatsapp");
         else await finish(sessionUser, sessionProfile);
       } catch (err) {
@@ -427,6 +509,43 @@ export function runAuthGate() {
       await finish(sessionUser, sessionProfile);
     });
 
+    document.getElementById("authBioLoginBtn").addEventListener("click", async () => {
+      setAuthError("");
+      try {
+        authSubmitInFlight = true;
+        const credId = await assertPasskey();
+        let uid = localStorage.getItem(PASSKEY_UID_KEY);
+        if (!uid && credId) {
+          const pk = await getDoc(doc(firestore, "passkeys", credId));
+          if (pk.exists()) uid = pk.data().uid;
+        }
+        if (auth.currentUser && (!uid || auth.currentUser.uid === uid)) {
+          sessionUser = auth.currentUser;
+          await afterSignedIn(auth.currentUser, { justRegistered: false, adminAttempt: isAdminEntry() });
+          return;
+        }
+        const res = await fetch("/api/passkey-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credId, uid }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.token) {
+          setAuthError(data.error || "No se pudo entrar con huella. Usa tu usuario, clave o el correo para restablecer.");
+          return;
+        }
+        await setPersistence(auth, browserLocalPersistence);
+        initialAuthHandled = true;
+        const cred = await signInWithCustomToken(auth, data.token);
+        sessionUser = cred.user;
+        await afterSignedIn(cred.user, { justRegistered: false, adminAttempt: isAdminEntry() });
+      } catch (err) {
+        setAuthError(err.message || "No se reconoció la huella. Entra con tu clave.");
+      } finally {
+        authSubmitInFlight = false;
+      }
+    });
+
     document.getElementById("authForgotBtn").addEventListener("click", () => {
       setAuthError("");
       const from = document.getElementById("authUsername");
@@ -441,38 +560,52 @@ export function runAuthGate() {
     });
     document.getElementById("authResetSend").addEventListener("click", async () => {
       setAuthError("");
-      const username = document.getElementById("authResetUser").value.trim();
-      const slug = slugFromUsername(username);
-      if (slug.length < 3) {
-        setAuthError("Escribe el nombre de usuario de tu cuenta.");
+      const input = document.getElementById("authResetUser").value.trim();
+      if (!input) {
+        setAuthError("Escribe tu correo o tu nombre de usuario.");
         return;
       }
       try {
-        const taken = await getDoc(doc(firestore, "usernames", slug));
-        if (!taken.exists()) {
-          setAuthError("No encontramos esa cuenta. Revisa el nombre de usuario.");
+        const email = await resolveAuthEmail(input);
+        if (!isValidEmail(email) || email.endsWith("@dorado-rifas.app")) {
+          const slug = slugFromUsername(input);
+          const taken = await getDoc(doc(firestore, "usernames", slug));
+          if (taken.exists()) {
+            const uid = taken.data().uid;
+            const profileSnap = uid ? await getDoc(doc(firestore, "users", uid)) : null;
+            const profile = profileSnap && profileSnap.exists() ? profileSnap.data() : {};
+            await setDoc(doc(firestore, "passwordResets", slug), {
+              uid,
+              username: profile.username || input,
+              phone: profile.phone || "",
+              status: "pending",
+              createdAt: Date.now(),
+            });
+            const lead = document.querySelector("[data-auth-step='reset'] .auth-lead");
+            if (lead) {
+              lead.textContent =
+                "Esa cuenta no tiene correo. Un administrador confirmará y te enviará una clave por WhatsApp.";
+            }
+            document.getElementById("authResetSend").hidden = true;
+            document.getElementById("authResetUser").disabled = true;
+            return;
+          }
+          setAuthError("No encontramos esa cuenta. Revisa el correo o el usuario.");
           return;
         }
-        const uid = taken.data().uid;
-        const profileSnap = uid ? await getDoc(doc(firestore, "users", uid)) : null;
-        const profile = profileSnap && profileSnap.exists() ? profileSnap.data() : {};
-        await setDoc(doc(firestore, "passwordResets", slug), {
-          uid,
-          username: profile.username || username,
-          phone: profile.phone || "",
-          status: "pending",
-          createdAt: Date.now(),
+        await sendPasswordResetEmail(auth, email, {
+          url: location.origin + "/",
+          handleCodeInApp: false,
         });
-        setAuthError("");
         const lead = document.querySelector("[data-auth-step='reset'] .auth-lead");
         if (lead) {
           lead.textContent =
-            "Pedido enviado. Un administrador lo confirma y te escribe por WhatsApp con la clave nueva. Cuando te llegue, vuelve y entra con “Ya tengo cuenta”.";
+            "Si ese correo está en una cuenta, te llega un mensaje para crear una clave nueva. Revisa bandeja y spam. Luego entra con “Ya tengo cuenta”.";
         }
         document.getElementById("authResetSend").hidden = true;
         document.getElementById("authResetUser").disabled = true;
-      } catch {
-        setAuthError("No se pudo enviar el pedido. Intenta de nuevo.");
+      } catch (err) {
+        setAuthError(firebaseErrorEs(err));
       }
     });
 

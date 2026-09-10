@@ -28,7 +28,10 @@
       </div>
       <form id="authForm">
         <label>Nombre de usuario
-          <input class="input-field" id="authUsername" name="username" autocomplete="username" required minlength="3" placeholder="ej. James_R">
+          <input class="input-field" id="authUsername" name="username" autocomplete="username" required minlength="3" placeholder="ej. CamiloR">
+        </label>
+        <label id="authEmailWrap">Correo
+          <input class="input-field" id="authEmail" name="email" type="email" autocomplete="email" placeholder="tucorreo@gmail.com">
         </label>
         <label>Clave
           <input class="input-field" id="authPassword" name="password" type="password" autocomplete="current-password" required minlength="6" placeholder="mínimo 6 caracteres">
@@ -46,17 +49,18 @@
         </label>
         <button class="btn btn-gold btn-block" type="submit" id="authSubmit">Crear cuenta</button>
       </form>
+      <button class="btn btn-ghost btn-block" type="button" id="authBioLoginBtn" hidden style="margin-top:10px;">Entrar con huella o Face ID</button>
       <p class="auth-switch" id="authForgotWrap"><button type="button" id="authForgotBtn">Olvidé mi clave</button></p>
       <p class="auth-switch" id="authGoPlay" hidden><a href="/" target="dorado-player">Soy jugador — abrir Dorado en otra ventana</a></p>
     </div>
 
     <div data-auth-step="reset" hidden>
       <h2>Olvidé mi clave</h2>
-      <p class="auth-lead">Escribe tu nombre de usuario. Un administrador confirma el pedido y te envía una clave nueva por WhatsApp. Después entra con “Ya tengo cuenta”.</p>
-      <label>Nombre de usuario
-        <input class="input-field" id="authResetUser" name="reset-username" autocomplete="username" minlength="3" placeholder="el usuario con el que te registraste">
+      <p class="auth-lead">Escribe tu correo (o tu usuario). Te llega un mensaje para crear una clave nueva. Revisa también spam.</p>
+      <label>Correo o usuario
+        <input class="input-field" id="authResetUser" name="reset-username" autocomplete="email" placeholder="tucorreo@gmail.com">
       </label>
-      <button class="btn btn-gold btn-block" type="button" id="authResetSend" style="margin-top:16px;">Pedir clave nueva</button>
+      <button class="btn btn-gold btn-block" type="button" id="authResetSend" style="margin-top:16px;">Enviar correo para restablecer</button>
       <button class="btn btn-ghost btn-block" type="button" id="authResetBack" style="margin-top:10px;">Volver</button>
     </div>
 
