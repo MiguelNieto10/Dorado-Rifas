@@ -1,5 +1,5 @@
 import { connectFirestore } from "./db.js";
-import { runAuthGate, signOutSession, WHATSAPP_GROUP_LINK, isAdminEntry } from "./auth.js";
+import { runAuthGate, signOutSession, isAdminEntry } from "./auth.js";
 import { createDrawRecorder } from "./drawRecord.js";
 import { archiveDrawVideo, bogotaDateKey } from "./drawStore.js";
 import { bindAdminFilters, refreshAdminViews } from "./admin.js";
@@ -540,7 +540,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     saveCard(value);
     closeModal();
     toast('Reservado 15 min. Envía el comprobante a un administrador del grupo. En verde queda asegurado.');
-    window.open(WHATSAPP_GROUP_LINK, '_blank', 'noopener');
   }
 
   // ---------- 9. SIMULAR OTROS JUGADORES (herramienta de prueba) ----------
@@ -1062,7 +1061,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       if(t.closest('#backBtn')){ showView('lobby'); return; }
       if(t.closest('#howBtn2') || t.closest('#demoInfoBtn')){ openModal('modalHow'); return; }
       if(t.closest('#howClose')){ closeModal(); return; }
-      if(t.closest('#joinWhatsappBtn')){ window.open(WHATSAPP_GROUP_LINK, '_blank', 'noopener'); return; }
 
       const openBtn = t.closest('[data-open]');
       if(openBtn){ openCard(parseInt(openBtn.dataset.open, 10)); return; }
