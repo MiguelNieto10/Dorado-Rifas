@@ -20,12 +20,11 @@
     <p class="auth-error" id="authError" hidden></p>
 
     <div data-auth-step="form">
-      <h2>Entra para jugar</h2>
-      <p class="auth-lead">Crea tu cuenta o inicia sesión. Así tus números y tu billetera quedan a tu nombre.</p>
-      <div class="auth-tabs">
+      <h2 id="authTitle">Entra para jugar</h2>
+      <p class="auth-lead" id="authLead">Crea tu cuenta o inicia sesión. Así tus números y tu billetera quedan a tu nombre.</p>
+      <div class="auth-tabs" id="authTabs">
         <button type="button" class="active" id="authModeRegister">Crear cuenta</button>
         <button type="button" id="authModeLogin">Ya tengo cuenta</button>
-        <button type="button" id="authModeAdmin">Administrador</button>
       </div>
       <form id="authForm">
         <label>Nombre de usuario
@@ -47,6 +46,7 @@
         </label>
         <button class="btn btn-gold btn-block" type="submit" id="authSubmit">Crear cuenta</button>
       </form>
+      <p class="auth-switch" id="authGoPlay" hidden><a href="/">Soy jugador — entrar a Dorado</a></p>
     </div>
 
     <div data-auth-step="bio" hidden>
@@ -58,7 +58,7 @@
 
     <div data-auth-step="whatsapp" hidden>
       <h2>Grupo de resultados</h2>
-      <p class="auth-lead">Es obligatorio unirse: ahí se publican el sorteo y el ganador de cada cartón. WhatsApp no deja agregarte solo — pulsa el botón, entra al grupo y luego confirma.</p>
+      <p class="auth-lead">Es obligatorio unirse: ahí se publican el sorteo y el ganador de cada tablero, y se envía el comprobante a los administradores. WhatsApp no deja agregarte solo — pulsa el botón, entra al grupo y luego confirma.</p>
       <button class="btn btn-gold btn-block" type="button" id="authJoinWa">Unirme al grupo de WhatsApp</button>
       <button class="btn btn-ghost btn-block" type="button" id="authWaDone" style="margin-top:10px;" disabled>Ya me uní — entrar a Dorado</button>
     </div>
@@ -74,7 +74,7 @@
     <img class="brand-logo" src="/logo.png?v=2" alt="Dorado — Gana al Instante">
   </button>
   <nav class="nav">
-    <button type="button" data-nav="lobby" class="active">Cartones</button>
+    <button type="button" data-nav="lobby" class="active">Tableros</button>
     <button type="button" data-nav="wallet">Billetera</button>
     <button type="button" data-nav="historial">Ganadores</button>
     <button type="button" class="admin-only" data-nav="admin-users">Usuarios</button>
@@ -110,24 +110,25 @@
   <section id="view-lobby" class="view">
     <div class="hero">
       <h1>La suerte, <em>con estilo.</em></h1>
-      <p>Elige tu cartón, marca tus números y juega. Cuando el cartón se llena al 100%, el sorteo se activa solo — el premio es la mitad de lo recaudado y cae directo a la billetera del ganador.</p>
+      <p>Elige un tablero de juego, marca tus números y envía el comprobante a un administrador del grupo. El número queda en verde cuando está asegurado. El premio es el 50% de lo recaudado; siempre hay ganador entre los números verdes y pagos. El sorteo es todos los días a las 9:00 p. m. (cuenta 10, 9… 0).</p>
       <div class="stat-row">
-        <div class="stat"><span class="v mono" id="statActive">—</span><span class="k">Cartones en juego</span></div>
+        <div class="stat"><span class="v mono" id="statActive">—</span><span class="k">Tableros en juego</span></div>
         <div class="stat"><span class="v mono" id="statPot">—</span><span class="k">Premio más alto ahora</span></div>
         <div class="stat"><span class="v mono">50%</span><span class="k">Del recaudo, al ganador</span></div>
+        <div class="stat"><span class="v mono">9:00 p. m.</span><span class="k">Sorteo diario</span></div>
       </div>
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:4px;">
         <button class="btn btn-ghost btn-sm" id="joinWhatsappBtn" type="button">💬 Unirme al grupo de avisos (WhatsApp)</button>
         <span style="font-size:0.74rem; color:var(--text-faint);">Avisos de inicio de sorteo y confirmación pública de cada ganador.</span>
       </div>
     </div>
-    <span class="section-label">Elige tu cartón</span>
+    <span class="section-label">Elige tu tablero de juego</span>
     <div class="cards-grid" id="cardsGrid"></div>
   </section>
 
   <!-- ===================== VISTA: CARTÓN ===================== -->
   <section id="view-card" class="view" hidden>
-    <button class="back-link" id="backBtn" type="button">← Volver a los cartones</button>
+    <button class="back-link" id="backBtn" type="button">← Volver a los tableros</button>
     <div class="card-head">
       <div>
         <h2 id="cdTitle" class="mono">$0</h2>
@@ -143,8 +144,8 @@
     <div class="grid-legend">
       <span><i class="lg-swatch" style="background:var(--surface-2); border:1px solid var(--border);"></i>Disponible</span>
       <span><i class="lg-swatch" style="background:linear-gradient(180deg,var(--gold-bright),var(--gold));"></i>Tu selección</span>
-      <span><i class="lg-swatch" style="background:var(--surface-3); border:1px solid var(--garnet);"></i>Ocupado</span>
-      <span><i class="lg-swatch" style="background:rgba(58,164,126,0.14); border:1px solid var(--emerald-bright);"></i>Tuyo (ya pagado)</span>
+      <span><i class="lg-swatch" style="background:rgba(58,164,126,0.14); border:1px solid var(--emerald-bright);"></i>Asegurado (verde y pago)</span>
+      <span><i class="lg-swatch" style="background:rgba(201,138,47,0.18); border:1px solid var(--amber);"></i>Reservado 15 min</span>
     </div>
 
     <div class="num-grid" id="numGrid"></div>
@@ -161,17 +162,17 @@
     </div>
 
     <div class="demo-tool">
-      <div class="lbl"><b>Herramienta de prueba</b>Simula jugadores reales (con nombre y ciudad) para completar el cartón al 100% y disparar el proceso completo del sorteo: alarma, cuenta regresiva, ruleta y ganador.</div>
+      <div class="lbl"><b>Herramienta de prueba</b>Simula jugadores para llenar el tablero y disparar el sorteo ahora (sin esperar las 9:00 p. m.).</div>
       <div class="controls">
         <button class="btn btn-outline btn-sm" data-sim="10" type="button">+10 jugadores</button>
         <button class="btn btn-outline btn-sm" data-sim="30" type="button">+30 jugadores</button>
-        <button class="btn btn-gold btn-sm" data-sim="all" type="button">▶ Completar cartón y sortear ahora</button>
-        <button class="btn btn-outline btn-sm" id="resetCardBtn" type="button" title="Úsalo solo si el cartón queda atascado en una prueba">↺ Reiniciar este cartón</button>
+        <button class="btn btn-gold btn-sm" data-sim="all" type="button">▶ Completar tablero y sortear ahora</button>
+        <button class="btn btn-outline btn-sm" id="resetCardBtn" type="button" title="Úsalo solo si el tablero queda atascado en una prueba">↺ Reiniciar este tablero</button>
       </div>
     </div>
 
     <div id="historySection" hidden>
-      <span class="section-label" style="margin-top:24px;">Últimos sorteos de este cartón</span>
+      <span class="section-label" style="margin-top:24px;">Últimos sorteos de este tablero</span>
       <div class="history-strip" id="historyStrip"></div>
     </div>
   </section>
@@ -204,7 +205,7 @@
   <section id="view-admin-users" class="view" hidden>
     <div class="hero" style="padding-top:24px; padding-bottom:8px;">
       <h1 style="font-size:clamp(1.6rem,3.4vw,2.2rem);">Usuarios</h1>
-      <p>Lista de cuentas. El indicador verde aparece si esa persona tiene números en un cartón que está abierto ahora. <span class="admin-count-line">Cuentas: <span class="mono" id="adminUserCount">0</span></span></p>
+      <p>Lista enumerada de cuentas. El indicador verde aparece si esa persona tiene números asegurados (en verde) en un tablero abierto. Filtra por día, mes o año arriba. <span class="admin-count-line">Cuentas: <span class="mono" id="adminUserCount">0</span></span></p>
     </div>
     <div id="adminUserList"></div>
   </section>
@@ -220,9 +221,11 @@
 
 <footer>
   <p class="legal-note">
-    Seis cartones, números del 00 al 99. Cuando un cartón se llena, arranca el sorteo:
-    el premio es la mitad de lo jugado y el ganador se anuncia en el grupo.
-    El cartón se reabre y vuelve el juego.
+    Seis tableros de juego, números del 00 al 99. El premio es el 50% de lo recaudado
+    y siempre hay un ganador entre los números verdes y pagos. El sorteo es todos los días
+    a las 9:00 p. m. (cuenta 10 a 0). Después el tablero se abre de nuevo.
+    Envía el comprobante a un administrador del grupo para asegurar tu número;
+    sin comprobante se libera a los 15 minutos.
   </p>
 </footer>
 
@@ -231,6 +234,7 @@
   <div class="modal" id="modalPayment" hidden>
     <h3>Confirmar pago</h3>
     <p class="sub" id="payDesc">—</p>
+    <p class="sub" style="margin-top:8px;">Envía el comprobante de pago a un administrador del grupo para asegurar tu número y poder reclamar el premio. Sin comprobante, el número se libera a los 15 minutos. Queda asegurado cuando finaliza y aparece en verde.</p>
     <div class="modal-row"><span class="k">Números</span><span class="v" id="payNums">—</span></div>
     <div class="modal-row"><span class="k">Total</span><span class="v" id="payTotal">$0</span></div>
     <button class="pay-option" id="payEpayco" type="button">
@@ -274,12 +278,12 @@
   <div class="modal" id="modalHow" hidden style="max-width:480px;">
     <h3>Cómo funciona Dorado</h3>
     <div class="how-list">
-      <p><span class="hi">01</span>Elige un cartón según el valor que quieras jugar.</p>
+      <p><span class="hi">01</span>Elige un tablero de juego según el valor que quieras jugar.</p>
       <p><span class="hi">02</span>Selecciona uno o varios números del 00 al 99 y paga.</p>
-      <p><span class="hi">03</span>Cuando el cartón llega al 100%, se avisa 5 minutos antes y comienza el sorteo.</p>
-      <p><span class="hi">04</span>El premio es el 50% de lo recaudado y se acredita solo a la billetera del ganador.</p>
-      <p><span class="hi">05</span>Puedes retirar tu saldo a Nequi o dejarlo en la app para jugar otro cartón.</p>
-      <p><span class="hi">06</span>El cartón se reabre automáticamente al público en cuanto termina el sorteo.</p>
+      <p><span class="hi">03</span>Envía el comprobante a un administrador del grupo. Sin comprobante el número se libera a los 15 minutos. Cuando finaliza, queda en verde y queda asegurado.</p>
+      <p><span class="hi">04</span>Siempre hay ganador: se juega el premio sobre los números verdes y pagos. El premio es el 50% de lo recaudado.</p>
+      <p><span class="hi">05</span>El sorteo es todos los días, lunes a domingo, a las 9:00 p. m.: cuenta 10 hasta 0 y se muestra el ganador.</p>
+      <p><span class="hi">06</span>Segundos después el tablero se habilita de nuevo para seguir apostando. Puedes retirar a Nequi o dejar el saldo para otro tablero.</p>
     </div>
     <div class="modal-actions"><button class="btn btn-gold btn-block" id="howClose" type="button">Entendido</button></div>
   </div>

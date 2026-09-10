@@ -41,6 +41,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   const DEMO_SPEED = true;
   const SPIN_MS = 10000; // 10 segundos: el temporizador cuenta 10, 9, 8… hasta 0
   const REVEAL_HOLD_MS = 16000; // tiempo para enviar el sorteo al grupo
+  const HOLD_MS = 15 * 60 * 1000; // sin comprobante, el número se libera
+  const DRAW_HOUR_BOGOTA = 21;
 
   const PROFILE = { name: 'Jugador', city: 'Bogotá' };
 
@@ -64,11 +66,69 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
   function pad2(n){ return String(n).padStart(2,'0'); }
 
+  function isHeld(slot){
+    return !!(slot && slot.pending && !slot.confirmed && slot.heldUntil && Date.now() < slot.heldUntil);
+  }
+  function isPaid(slot){
+    if(!slot) return false;
+    if(isHeld(slot)) return false;
+    if(slot.pending && !slot.confirmed) return false;
+    return true;
+  }
+  function paidNumbers(card){
+    return Object.keys(card.numbers || {}).filter((n)=> isPaid(card.numbers[n]));
+  }
+  function recountSold(card){
+    card.sold = paidNumbers(card).length;
+  }
+  function expireHolds(card){
+    if(!card || !card.numbers) return false;
+    let changed = false;
+    Object.keys(card.numbers).forEach((n)=>{
+      const slot = card.numbers[n];
+      if(slot && slot.pending && !slot.confirmed && slot.heldUntil && Date.now() >= slot.heldUntil){
+        card.numbers[n] = null;
+        changed = true;
+      }
+    });
+    if(changed) recountSold(card);
+    return changed;
+  }
+  function bogotaStamp(){
+    const fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Bogota',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      hourCycle: 'h23'
+    });
+    const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p)=>[p.type, p.value]));
+    return { date: parts.year + '-' + parts.month + '-' + parts.day, hour: parseInt(parts.hour, 10) };
+  }
+  function maybeScheduledDraws(){
+    const { date, hour } = bogotaStamp();
+    if(hour < DRAW_HOUR_BOGOTA) return;
+    CARD_VALUES.forEach((value)=>{
+      const card = cardsCache[value];
+      if(!card || card.status === 'drawing') return;
+      if(card.lastDrawDate === date) return;
+      expireHolds(card);
+      const pool = paidNumbers(card);
+      card.lastDrawDate = date;
+      if(pool.length === 0){
+        saveCard(value);
+        return;
+      }
+      startCountdown(card);
+    });
+  }
+
   // Crea un cartón "en blanco": sin números vendidos.
   function freshCard(value){
     const numbers = {};
     for(let i=0;i<100;i++) numbers[pad2(i)] = null;
-    return { value, numbers, sold:0, status:'open', countdownEndsAt:null, spinEndsAt:null, pendingWinner:null, history:[] };
+    return { value, numbers, sold:0, status:'open', countdownEndsAt:null, spinEndsAt:null, pendingWinner:null, history:[], lastDrawDate:null, drawCollected:null };
   }
 
   // Crea un cartón ya parcialmente lleno, solo para que la app
@@ -78,13 +138,13 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     const indices = Array.from({length:100}, (_,i)=>pad2(i)).sort(()=>Math.random()-0.5);
     let filled = 0;
     (userNumbers||[]).forEach(n=>{
-      card.numbers[n] = randomBot();
+      card.numbers[n] = Object.assign(randomBot(), { confirmed:true, pending:false });
       filled++;
     });
     for(const n of indices){
       if(filled >= soldCount) break;
       if(card.numbers[n]) continue;
-      card.numbers[n] = randomBot();
+      card.numbers[n] = Object.assign(randomBot(), { confirmed:true, pending:false });
       filled++;
     }
     card.sold = filled;
@@ -201,12 +261,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
           // "atascado" sin poder venderse ni sortearse.
           if(cardsCache[value].status !== 'drawing'){
             cardsCache[value].status = 'open';
-            // Si ya estaba 100% vendido (por ejemplo, quedó así de
-            // una prueba anterior), disparamos el sorteo de una vez
-            // en lugar de dejarlo esperando un clic más.
-            if(cardsCache[value].sold >= 100){
-              startCountdown(cardsCache[value]);
-            }
           }
         } else {
           const userNums = value===5000 ? ['07','42'] : [];
@@ -315,6 +369,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   function renderLobbyCard(value){
     const card = cardsCache[value];
     if(!card) return;
+    if(expireHolds(card)) saveCard(value);
     let el = document.getElementById('ticket-'+value);
     if(!el){
       el = document.createElement('div');
@@ -331,7 +386,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       '<div class="progress-track"><div class="progress-fill" style="width:' + card.sold + '%"></div></div>' +
       '<div class="progress-meta"><span>Números vendidos</span><span class="mono">' + card.sold + '/100</span></div>' +
       '<div class="pot-line"><span class="k">Premio actual</span><span class="v">' + fmt(pot) + '</span></div>' +
-      '<button class="btn btn-gold btn-block" data-open="' + value + '">Ver cartón</button>';
+      '<button class="btn btn-gold btn-block" data-open="' + value + '">Ver tablero</button>';
     // El clic en "Ver cartón" lo maneja el oyente central de la
     // sección 13 (busca elementos con el atributo data-open), así
     // que aquí no hace falta conectar nada manualmente.
@@ -342,6 +397,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   function renderCardDetail(value){
     const card = cardsCache[value];
     if(!card) return;
+    if(expireHolds(card)) saveCard(value);
     document.getElementById('cdTitle').textContent = fmt(value);
     document.getElementById('cdSold').textContent = card.sold + '/100';
     document.getElementById('cdPot').textContent = fmt(card.sold * value * 0.5);
@@ -357,8 +413,16 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       const owner = card.numbers[n];
       const cell = document.createElement('div');
       cell.textContent = n;
-      cell.dataset.num = n; // el oyente central de clics usa este dato para saber qué número tocaron
-      if(owner){
+      cell.dataset.num = n;
+      if(isHeld(owner)){
+        cell.className = 'num-cell held';
+        const dot = document.createElement('span');
+        dot.className = 'owner-dot';
+        dot.textContent = (owner.owner === PROFILE.name || owner.owner === 'Tú') ? 'Tú' : (owner.owner || '').split(' ')[0];
+        cell.appendChild(dot);
+        cell.title = 'Reservado 15 min · envía el comprobante a un administrador';
+        if(isAdmin) cell.title += ' · clic para asegurar (verde)';
+      } else if(owner){
         cell.className = 'num-cell taken' + ((owner.owner === PROFILE.name || owner.owner === 'Tú') ? ' taken-user' : '');
         const dot = document.createElement('span');
         dot.className = 'owner-dot';
@@ -405,7 +469,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   function openPaymentModal(){
     const value = openCardValue;
     const total = selectedNumbers.size * value;
-    document.getElementById('payDesc').textContent = 'Cartón de ' + fmt(value) + ' · ' + selectedNumbers.size + ' número(s)';
+    document.getElementById('payDesc').textContent = 'Tablero de ' + fmt(value) + ' · ' + selectedNumbers.size + ' número(s)';
     document.getElementById('payNums').textContent = Array.from(selectedNumbers).sort().join(', ');
     document.getElementById('payTotal').textContent = fmt(total);
     document.getElementById('payWalletSub').textContent = 'Disponible: ' + fmt(wallet.balance);
@@ -423,9 +487,9 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     if(method === 'wallet'){
       if(wallet.balance < total){ toast('Saldo insuficiente en tu billetera'); return; }
       wallet.balance -= total;
-      addActivity('compra', 'Cartón ' + fmt(value) + ' · números ' + nums.join(', ') + ' (saldo billetera)', -total);
+      addActivity('compra', 'Tablero ' + fmt(value) + ' · números ' + nums.join(', ') + ' (saldo billetera)', -total);
     } else {
-      addActivity('compra', 'Cartón ' + fmt(value) + ' · números ' + nums.join(', '), 0);
+      addActivity('compra', 'Tablero ' + fmt(value) + ' · números ' + nums.join(', '), 0);
     }
     saveWallet();
 
@@ -435,10 +499,13 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         city: PROFILE.city,
         isUser: true,
         ownerUid: currentUid || null,
-        boughtAt: Date.now()
+        boughtAt: Date.now(),
+        pending: true,
+        confirmed: false,
+        heldUntil: Date.now() + HOLD_MS
       };
     });
-    card.sold += nums.length;
+    recountSold(card);
     selectedNumbers.clear();
 
     if(usingDb && currentUid){
@@ -454,12 +521,10 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       }).catch(()=>{});
     }
 
-    if(card.sold >= 100){
-      startCountdown(card);
-    }
     saveCard(value);
     closeModal();
-    toast('¡Listo! Compraste ' + nums.length + ' número(s) del cartón ' + fmt(value));
+    toast('Reservado 15 min. Envía el comprobante a un administrador del grupo. En verde queda asegurado.');
+    window.open(WHATSAPP_GROUP_LINK, '_blank', 'noopener');
   }
 
   // ---------- 9. SIMULAR OTROS JUGADORES (herramienta de prueba) ----------
@@ -471,11 +536,11 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     // caso siempre llenamos TODO lo que quede disponible, sin importar
     // cuántos números falten.
     const toFill = available.sort(()=>Math.random()-0.5).slice(0, Math.min(count, available.length));
-    toFill.forEach(n=>{ card.numbers[n] = randomBot(); });
-    card.sold += toFill.length;
-    if(card.sold >= 100){ startCountdown(card); }
+    toFill.forEach(n=>{ card.numbers[n] = Object.assign(randomBot(), { confirmed:true, pending:false }); });
+    recountSold(card);
+    if(count === Infinity && paidNumbers(card).length > 0){ startCountdown(card); }
     saveCard(value);
-    toast(toFill.length + ' jugadores simulados se unieron al cartón ' + fmt(value));
+    toast(toFill.length + ' jugadores simulados se unieron al tablero ' + fmt(value));
   }
 
   // ---------- 10. SORTEO ----------
@@ -484,14 +549,15 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   // un sonido y un mensaje, y abre la pantalla de sorteo con el
   // temporizador visible de 10 a 0.
   function startCountdown(card){
+    const pool = paidNumbers(card);
+    if(pool.length === 0) return;
+    if(card.status === 'drawing' && card.pendingWinner) return;
     card.status = 'drawing';
     card.spinEndsAt = Date.now() + SPIN_MS;
-    // El número ganador ya se decide aquí (server-side en un caso
-    // real), pero no se muestra hasta que el temporizador llegue a 0.
-    const allNums = Object.keys(card.numbers);
-    card.pendingWinner = allNums[Math.floor(Math.random()*allNums.length)];
+    card.pendingWinner = pool[Math.floor(Math.random()*pool.length)];
+    card.drawCollected = pool.length * card.value;
     chime([660, 880], 0.5);
-    toast('🔔 ¡Cartón de ' + fmt(card.value) + ' completo! Comienza el sorteo…');
+    toast('🔔 Sorteo del tablero ' + fmt(card.value) + ': cuenta 10 a 0. El ganador sale de los números verdes y pagos.');
     // Importante: guardamos YA el estado "en sorteo". Si no lo
     // guardáramos aquí, la base de datos seguiría diciendo "abierto
     // y lleno", y cada vez que llegara una actualización (incluso
@@ -575,11 +641,11 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
           // Aquí es cuando la cuenta regresiva llega a 0: la ruleta
           // se detiene exactamente en el número ganador.
           stage.innerHTML =
-            '<span class="draw-kicker">Cartón ' + fmt(card.value) + ' · sorteo en vivo</span>' +
+            '<span class="draw-kicker">Tablero ' + fmt(card.value) + ' · sorteo en vivo</span>' +
             '<div class="draw-ring" style="--pct:100"><span class="ring-num">0</span></div>' +
             '<div class="reel"><span class="reel-digit">' + card.pendingWinner[0] + '</span><span class="reel-digit">' + card.pendingWinner[1] + '</span></div>' +
             '<p class="draw-msg">¡Aquí está el número ganador!</p>';
-          if(drawRec) drawRec.spin({ kicker:'Cartón ' + fmt(card.value) + ' · sorteo en vivo', sec:0, d0:card.pendingWinner[0], d1:card.pendingWinner[1] });
+          if(drawRec) drawRec.spin({ kicker:'Tablero ' + fmt(card.value) + ' · sorteo en vivo', sec:0, d0:card.pendingWinner[0], d1:card.pendingWinner[1] });
           chime([784], 0.4);
           setTimeout(finishOnce, 900);
           return;
@@ -587,11 +653,11 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
         const current = pad2(Math.floor(Math.random()*100));
         stage.innerHTML =
-          '<span class="draw-kicker">Cartón ' + fmt(card.value) + ' · sorteo en vivo</span>' +
+          '<span class="draw-kicker">Tablero ' + fmt(card.value) + ' · sorteo en vivo</span>' +
           '<div class="draw-ring" style="--pct:' + Math.min(100,pct) + '"><span class="ring-num">' + secLeft + '</span></div>' +
           '<div class="reel spinning"><span class="reel-digit">' + current[0] + '</span><span class="reel-digit">' + current[1] + '</span></div>' +
           '<p class="draw-msg">Girando… el número ganador aparecerá al llegar a 0</p>';
-        if(drawRec) drawRec.spin({ kicker:'Cartón ' + fmt(card.value) + ' · sorteo en vivo', sec:secLeft, d0:current[0], d1:current[1] });
+        if(drawRec) drawRec.spin({ kicker:'Tablero ' + fmt(card.value) + ' · sorteo en vivo', sec:secLeft, d0:current[0], d1:current[1] });
         requestAnimationFrame(frame);
       }catch(e){
         // Si algo inesperado falla a mitad del giro, no dejamos la
@@ -605,7 +671,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   function finishDraw(card){
     const winnerSlot = card.numbers[card.pendingWinner];
     const value = card.value;
-    const prize = value * 50; // 50% de (100 números * valor)
+    const prize = (card.drawCollected != null ? card.drawCollected : paidNumbers(card).length * value) * 0.5;
     const wonByUser = !!(winnerSlot && (winnerSlot.owner === PROFILE.name || winnerSlot.owner === 'Tú'));
     const winnerName = winnerSlot ? winnerSlot.owner : 'Sin comprador';
     const winnerCity = winnerSlot ? winnerSlot.city : '—';
@@ -614,7 +680,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
     if(wonByUser){
       wallet.balance += prize;
-      addActivity('premio', 'Ganaste el sorteo del cartón ' + fmt(value) + ' (número ' + card.pendingWinner + ')', prize);
+      addActivity('premio', 'Ganaste el sorteo del tablero ' + fmt(value) + ' (número ' + card.pendingWinner + ')', prize);
       saveWallet();
     }
 
@@ -625,13 +691,13 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     // Mensaje listo para pegar en el grupo de WhatsApp: sirve como
     // "constancia" pública de que el premio se entregó de verdad.
     lastWinnerMsg = '🏆 *Dorado Rifas* — Sorteo oficial\n' +
-      'Cartón: ' + fmt(value) + '\n' +
+      'Tablero de juego: ' + fmt(value) + '\n' +
       'Número ganador: *' + card.pendingWinner + '*\n' +
       'Ganador(a): ' + winnerName + '\n' +
       'Ciudad: ' + winnerCity + '\n' +
-      'Dinero ganado: ' + fmt(prize) + '\n' +
+      'Premio (50% de lo recaudado): ' + fmt(prize) + '\n' +
       'Fecha: ' + new Date().toLocaleString('es-CO',{dateStyle:'medium',timeStyle:'short'}) + '\n\n' +
-      'El cartón de ' + fmt(value) + ' ya está *habilitado de nuevo* para todo el público.\n' +
+      'El tablero de ' + fmt(value) + ' ya está *habilitado de nuevo*.\n' +
       'Únete y juega: ' + location.origin;
 
     if(usingDb && db){
@@ -642,6 +708,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         winnerCity,
         winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null,
         prize,
+        collected: card.drawCollected != null ? card.drawCollected : prize * 2,
+        paidCount: card.drawCollected != null ? Math.round(card.drawCollected / value) : paidNumbers(card).length,
         ts: Date.now(),
         newCardOpen: true
       }).catch(()=>{});
@@ -651,7 +719,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     drawRec = null;
     if(rec){
       rec.winner({
-        kicker: 'Cartón ' + fmt(value) + ' · sorteo en vivo',
+        kicker: 'Tablero ' + fmt(value) + ' · sorteo en vivo',
         number: card.pendingWinner,
         name: winnerName,
         city: winnerCity,
@@ -675,8 +743,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         '<div class="reveal-winner">' + (wonByUser ? 'El premio es tuyo' : winnerName) + '</div>' +
         '<div class="reveal-city">' + winnerCity + '</div>' +
         '<div class="reveal-prize">' + fmt(prize) + '</div>' +
-        (wonByUser ? '<p class="draw-msg" style="margin-top:10px;">Ya está en tu billetera. Úsalo en otro cartón o retíralo a Nequi.</p>'
-                   : '<p class="draw-msg" style="margin-top:10px;">Este cartón se reabre en unos segundos para todo el público.</p>') +
+        (wonByUser ? '<p class="draw-msg" style="margin-top:10px;">Ya está en tu billetera. Úsalo en otro tablero o retíralo a Nequi.</p>'
+                   : '<p class="draw-msg" style="margin-top:10px;">Este tablero se reabre en unos segundos.</p>') +
       '</div>' +
       '<div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:2px;">' +
         '<button class="btn btn-gold btn-sm" id="shareWaDrawBtn" type="button">Enviar sorteo al grupo</button>' +
@@ -699,9 +767,10 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
     const fresh = freshCard(card.value);
     fresh.history = card.history;
+    fresh.lastDrawDate = card.lastDrawDate;
     cardsCache[card.value] = fresh;
     saveCard(card.value);
-    toast('El cartón de ' + fmt(card.value) + ' se reabrió para todo el público 🎟️');
+    toast('El tablero de ' + fmt(card.value) + ' se habilitó de nuevo');
   }
 
   // Botón de emergencia: deja el cartón abierto como el primer día
@@ -717,7 +786,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     cardsCache[value] = fresh;
     selectedNumbers.clear();
     saveCard(value);
-    toast('Cartón de ' + fmt(value) + ' reiniciado');
+    toast('Tablero de ' + fmt(value) + ' reiniciado');
   }
 
   function spawnConfetti(container, count){
@@ -799,7 +868,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       }).join('');
       const countLbl = winners.length + (winners.length === 1 ? ' ganador' : ' ganadores');
       return '<details class="hist-group">' +
-        '<summary>Cartón ' + fmt(v) + '<span class="hist-count">' + countLbl + '</span></summary>' +
+        '<summary>Tablero ' + fmt(v) + '<span class="hist-count">' + countLbl + '</span></summary>' +
         '<div class="activity-list">' + rows + '</div>' +
       '</details>';
     }).join('');
@@ -839,7 +908,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     el.textContent = msg;
     el.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(()=>{ el.hidden = true; }, 3200);
+    toastTimer = setTimeout(()=>{ el.hidden = true; }, 5200);
   }
 
   // ---------- 13. CONECTAR BOTONES (un solo "oyente" para toda la app) ----------
@@ -882,6 +951,19 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       if(openBtn){ openCard(parseInt(openBtn.dataset.open, 10)); return; }
 
       const numCell = t.closest('.num-cell[data-num]');
+      if(numCell && numCell.classList.contains('held') && isAdmin){
+        const card = cardsCache[openCardValue];
+        const slot = card && card.numbers[numCell.dataset.num];
+        if(slot && isHeld(slot)){
+          slot.pending = false;
+          slot.confirmed = true;
+          delete slot.heldUntil;
+          recountSold(card);
+          saveCard(openCardValue);
+          toast('Número ' + numCell.dataset.num + ' asegurado en verde.');
+        }
+        return;
+      }
       if(numCell && numCell.classList.contains('available')){ toggleNumber(numCell.dataset.num); return; }
 
       if(t.closest('#clearSelBtn')){ selectedNumbers.clear(); renderCardDetail(openCardValue); return; }
@@ -986,4 +1068,12 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       }
       bindAdminFilters(() => cardsCache);
     }
+    setInterval(()=>{
+      CARD_VALUES.forEach((value)=>{
+        const card = cardsCache[value];
+        if(card && expireHolds(card)) saveCard(value);
+      });
+      maybeScheduledDraws();
+    }, 10000);
+    maybeScheduledDraws();
   });

@@ -106,7 +106,7 @@ export function createDrawRecorder() {
       ctx.fillText(prize, 360, 760);
       ctx.fillStyle = "#a89e8c";
       ctx.font = "500 24px Jost, sans-serif";
-      ctx.fillText("El cartón se reabre para todo el público", 360, 860);
+      ctx.fillText("El tablero se habilita de nuevo", 360, 860);
     },
     stop() {
       return new Promise((resolve) => {

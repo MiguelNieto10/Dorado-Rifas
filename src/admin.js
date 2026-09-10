@@ -53,6 +53,12 @@ async function readCollection(firestore, name) {
   }
 }
 
+function slotIsPaid(slot) {
+  if (!slot) return false;
+  if (slot.pending && !slot.confirmed) return false;
+  return true;
+}
+
 function slotBelongsToUser(slot, uid, username) {
   if (!slot) return false;
   if (uid && slot.ownerUid && slot.ownerUid === uid) return true;
@@ -65,7 +71,7 @@ function userIsActiveNow(cardsCache, uid, username) {
   return CARD_VALUES.some((value) => {
     const card = cardsCache[value];
     if (!card || !card.numbers) return false;
-    return Object.values(card.numbers).some((slot) => slotBelongsToUser(slot, uid, username));
+    return Object.values(card.numbers).some((slot) => slotIsPaid(slot) && slotBelongsToUser(slot, uid, username));
   });
 }
 
@@ -73,7 +79,7 @@ function activeCardsForUser(cardsCache, uid, username) {
   return CARD_VALUES.filter((value) => {
     const card = cardsCache[value];
     if (!card || !card.numbers) return false;
-    return Object.values(card.numbers).some((slot) => slotBelongsToUser(slot, uid, username));
+    return Object.values(card.numbers).some((slot) => slotIsPaid(slot) && slotBelongsToUser(slot, uid, username));
   });
 }
 
@@ -131,8 +137,8 @@ function renderUsers(listEl, rows) {
   listEl.innerHTML = rows
     .map((u, i) => {
       const active = u.active
-        ? '<span class="admin-live">En cartón activo · ' + u.activeValues.map((v) => fmt(v)).join(", ") + "</span>"
-        : '<span class="admin-idle">Sin cartón activo</span>';
+        ? '<span class="admin-live">En tablero activo · ' + u.activeValues.map((v) => fmt(v)).join(", ") + "</span>"
+        : '<span class="admin-idle">Sin tablero activo</span>';
       const wins = u.winDetails
         .map((d) => fmt(d.prize) + " (" + fmt(d.cardValue) + ")")
         .join(" · ") || "—";
@@ -145,7 +151,7 @@ function renderUsers(listEl, rows) {
             active +
           "</div>" +
           '<div class="admin-user-grid">' +
-            "<div><span class=\"k\">Cartones jugados</span><span class=\"v\">" + u.cardsPlayed + "</span></div>" +
+            "<div><span class=\"k\">Tableros jugados</span><span class=\"v\">" + u.cardsPlayed + "</span></div>" +
             "<div><span class=\"k\">Compras</span><span class=\"v\">" + u.purchases + "</span></div>" +
             "<div><span class=\"k\">Números pagos</span><span class=\"v\">" + u.numbersPaid + "</span></div>" +
             "<div><span class=\"k\">Veces que ganó</span><span class=\"v\">" + u.wins + "</span></div>" +
@@ -162,8 +168,16 @@ function renderUsers(listEl, rows) {
 function renderCaja(root, bundle, mode, dateStr) {
   const draws = bundle.draws.filter((d) => inRange(d.ts, mode, dateStr));
   const plays = bundle.plays.filter((p) => inRange(p.ts, mode, dateStr));
-  const closedNumbers = draws.length * 100;
-  const closedCollected = draws.reduce((n, d) => n + (Number(d.cardValue) || 0) * 100, 0);
+  const closedNumbers = draws.reduce((n, d) => {
+    if (d.paidCount != null) return n + Number(d.paidCount);
+    if (d.collected != null && d.cardValue) return n + Math.round(Number(d.collected) / Number(d.cardValue));
+    return n + 100;
+  }, 0);
+  const closedCollected = draws.reduce((n, d) => {
+    if (d.collected != null) return n + Number(d.collected);
+    if (d.prize != null) return n + Number(d.prize) * 2;
+    return n + (Number(d.cardValue) || 0) * 100;
+  }, 0);
   const closedProfit = closedCollected * 0.5;
   const realNumbers = plays.reduce((n, p) => n + (Number(p.count) || (p.numbers || []).length || 0), 0);
   const realAmount = plays.reduce((n, p) => n + (Number(p.amount) || 0), 0);
@@ -190,7 +204,7 @@ function renderCaja(root, bundle, mode, dateStr) {
       '<div class="stat"><span class="v mono">' + draws.length + '</span><span class="k">Sorteos en el periodo</span></div>' +
     "</div>" +
     '<div class="admin-open">' +
-      "<h3>Cartones abiertos ahora</h3>" +
+      "<h3>Tableros abiertos ahora</h3>" +
       "<p>No usa el filtro de fecha: es lo que está en juego en este momento.</p>" +
       '<div class="stat-row">' +
         '<div class="stat"><span class="v mono">' + openSold + '/600</span><span class="k">Números vendidos</span></div>' +

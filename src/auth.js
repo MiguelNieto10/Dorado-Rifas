@@ -52,6 +52,12 @@ export function isAdminAccount(profile, username) {
   return !!slug && adminSlugs().includes(slug);
 }
 
+export function isAdminEntry() {
+  const path = (location.pathname || "/").replace(/\/+$/, "") || "/";
+  if (path === "/admin" || path.endsWith("/admin.html")) return true;
+  return new URLSearchParams(location.search).has("admin");
+}
+
 function digitsPhone(raw) {
   return String(raw || "").replace(/\D/g, "");
 }
@@ -172,7 +178,7 @@ export function runAuthGate() {
       const profile = await loadProfile(user);
       const adminOk = isAdminAccount(profile, profile.username || user.displayName);
       if (adminAttempt && !adminOk) {
-        setAuthError("Esta cuenta no es de administrador. Entra con “Ya tengo cuenta” para jugar.");
+        setAuthError("Esta cuenta no es de administrador. Entra en el sitio de jugadores.");
         finishing = false;
         showStep("form");
         if (gate) gate.hidden = false;
@@ -211,24 +217,25 @@ export function runAuthGate() {
       }
       sessionUser = user;
       sessionProfile = await loadProfile(user);
-      await afterSignedIn(user, { justRegistered: false });
+      await afterSignedIn(user, { justRegistered: false, adminAttempt: isAdminEntry() });
     });
 
     function authMode() {
-      if (document.getElementById("authModeAdmin").classList.contains("active")) return "admin";
+      if (isAdminEntry()) return "admin";
       if (document.getElementById("authModeLogin").classList.contains("active")) return "login";
       return "register";
     }
 
     function setAuthMode(mode) {
-      document.getElementById("authModeRegister").classList.toggle("active", mode === "register");
-      document.getElementById("authModeLogin").classList.toggle("active", mode === "login");
-      document.getElementById("authModeAdmin").classList.toggle("active", mode === "admin");
-      const lead = document.querySelector("[data-auth-step='form'] .auth-lead");
-      const title = document.querySelector("[data-auth-step='form'] h2");
+      const reg = document.getElementById("authModeRegister");
+      const log = document.getElementById("authModeLogin");
+      if (reg) reg.classList.toggle("active", mode === "register");
+      if (log) log.classList.toggle("active", mode === "login");
+      const lead = document.getElementById("authLead") || document.querySelector("[data-auth-step='form'] .auth-lead");
+      const title = document.getElementById("authTitle") || document.querySelector("[data-auth-step='form'] h2");
       if (mode === "admin") {
-        if (title) title.textContent = "Entrar como administrador";
-        if (lead) lead.textContent = "Usa tu usuario y clave. Los jugadores no ven estos paneles.";
+        if (title) title.textContent = "Administrador";
+        if (lead) lead.textContent = "Este enlace es solo para ti. Con tu usuario y clave ves Usuarios, Caja y puedes asegurar números en verde. Los jugadores no tienen este acceso.";
       } else {
         if (title) title.textContent = "Entra para jugar";
         if (lead) lead.textContent = "Crea tu cuenta o inicia sesión. Así tus números y tu billetera quedan a tu nombre.";
@@ -250,7 +257,6 @@ export function runAuthGate() {
 
     document.getElementById("authModeRegister").addEventListener("click", () => setAuthMode("register"));
     document.getElementById("authModeLogin").addEventListener("click", () => setAuthMode("login"));
-    document.getElementById("authModeAdmin").addEventListener("click", () => setAuthMode("admin"));
 
     document.getElementById("authForm").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -346,6 +352,16 @@ export function runAuthGate() {
       await finish(sessionUser, sessionProfile);
     });
 
-    syncRegisterFields();
+    if (isAdminEntry()) {
+      document.body.classList.add("admin-entry");
+      document.title = "Administrador · Dorado Rifas";
+      const tabs = document.getElementById("authTabs");
+      if (tabs) tabs.hidden = true;
+      const goPlay = document.getElementById("authGoPlay");
+      if (goPlay) goPlay.hidden = false;
+      setAuthMode("admin");
+    } else {
+      syncRegisterFields();
+    }
   });
 }

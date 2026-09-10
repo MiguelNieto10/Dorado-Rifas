@@ -280,8 +280,9 @@
   .num-cell.available{cursor:pointer; color:var(--text);}
   .num-cell.available:hover{border-color:var(--gold-dim); transform:translateY(-1px);}
   .num-cell.selected{background:linear-gradient(180deg, var(--gold-bright), var(--gold)); color:#1a1405; border-color:var(--gold-bright); box-shadow:0 0 0 3px var(--gold-wash);}
-  .num-cell.taken{background:var(--surface-3); border-color:var(--garnet); color:var(--text-faint); cursor:default;}
-  .num-cell.taken-user{background:rgba(58,164,126,0.14); border-color:var(--emerald-bright); color:var(--emerald-bright);}
+  .num-cell.taken{background:rgba(58,164,126,0.10); border-color:var(--emerald); color:var(--emerald-bright); cursor:default;}
+  .num-cell.taken-user{background:rgba(58,164,126,0.22); border-color:var(--emerald-bright); color:var(--emerald-bright);}
+  .num-cell.held{background:rgba(201,138,47,0.16); border-color:var(--amber); color:var(--amber); cursor:default;}
   .num-cell .owner-dot{position:absolute; bottom:2px; font-size:0.42rem; font-family:var(--font-body); letter-spacing:0; color:inherit; opacity:0.85; max-width:92%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 
   .selection-bar{
@@ -504,6 +505,8 @@
     border-radius:100px; padding:8px 8px; font-size:0.74rem; font-weight:600;
   }
   .auth-tabs button.active{color:var(--gold-bright); background:var(--gold-wash); border-color:var(--gold-dim);}
+  .auth-switch{margin-top:16px; text-align:center; font-size:0.82rem;}
+  .auth-switch a{color:var(--gold-bright);}
   .auth-card label{display:block; font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); margin-top:10px;}
   .auth-card .input-field{margin:6px 0 0;}
   .auth-check{
