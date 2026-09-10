@@ -173,6 +173,13 @@
       <span class="pill" id="cdStatus">ABIERTO</span>
     </div>
 
+    <ol class="play-steps">
+      <li><b>1</b> Elige</li>
+      <li><b>2</b> Paga Nequi</li>
+      <li><b>3</b> Comprobante: nombre, tablero, número</li>
+    </ol>
+    <p class="play-steps-note">Marcar no reserva. Solo queda tuyo cuando pagas y envías el comprobante.</p>
+
     <div class="grid-legend">
       <span><i class="lg-swatch" style="background:var(--surface-2); border:1px solid var(--border);"></i>Disponible</span>
       <span><i class="lg-swatch" style="background:linear-gradient(180deg,var(--gold-bright),var(--gold));"></i>Tu selección</span>
@@ -186,10 +193,11 @@
       <div class="sel-info">
         <div><span class="k">Números elegidos</span><span class="v" id="selCount">0</span></div>
         <div><span class="k">Total a pagar</span><span class="v" id="selTotal">$0</span></div>
+        <p class="sel-hint">Siguiente: Pagar. Si no pagas, nadie más ve tu número.</p>
       </div>
       <div style="display:flex; gap:10px;">
         <button class="btn btn-outline btn-sm" id="clearSelBtn" type="button">Limpiar</button>
-        <button class="btn btn-gold" id="payBtn" type="button">Pagar</button>
+        <button class="btn btn-gold" id="payBtn" type="button">Pagar con Nequi</button>
       </div>
     </div>
 
@@ -264,17 +272,17 @@
   <div class="modal" id="modalPayment" hidden>
     <h3>Confirmar pago</h3>
     <p class="sub" id="payDesc">—</p>
-    <p class="sub" style="margin-top:8px;">Envía el comprobante de pago a un administrador del grupo. En el mismo mensaje escribe tu <strong>nombre completo</strong>, <strong>en qué tablero estás jugando</strong> y el <strong>número o números</strong> que elegiste. Sin comprobante, el número se libera a los 15 minutos. Queda asegurado cuando aparece en verde.</p>
+    <p class="play-steps-note" style="margin:8px 0 12px;">Hasta aquí no está reservado. Sigue: copia Nequi → envía el total → Pagar con Nequi.</p>
     <div class="modal-row"><span class="k">Números</span><span class="v" id="payNums">—</span></div>
     <div class="modal-row"><span class="k">Total</span><span class="v" id="payTotal">$0</span></div>
     <div class="nequi-box">
       <p class="nequi-box-k">Cuenta Nequi de Dorado</p>
       <p class="nequi-box-num" id="nequiAccountDisplay">3150505240</p>
       <button class="btn btn-outline btn-sm" type="button" id="copyNequiBtn" data-copy-nequi="3150505240">Copiar número</button>
-      <p class="nequi-box-hint">Abre Nequi, envía el total a este número y después pulsa Pagar con Nequi. Tus números quedan 15 minutos reservados. Manda el comprobante a un administrador e indica nombre completo, tablero y números para que pasen a verde.</p>
+      <p class="nequi-box-hint">Envía el total a este número. Después pulsa Pagar con Nequi.</p>
     </div>
     <button class="pay-option" id="payNequi" type="button">
-      <span><b>Pagar con Nequi</b><span>Reservar y pagar a 3150505240</span></span>
+      <span><b>Pagar con Nequi</b><span>Reservar 15 min y pagar a 3150505240</span></span>
       <span>→</span>
     </button>
     <div class="modal-actions">
@@ -283,18 +291,18 @@
   </div>
 
   <div class="modal" id="modalNequiPay" hidden>
-    <h3>Paga a Nequi de Dorado</h3>
-    <p class="sub">Tus números ya están reservados 15 minutos. Completa el envío ahora para que un administrador los ponga en verde.</p>
+    <h3>Último paso</h3>
+    <p class="sub">Ya está reservado 15 min. Termina ahora:</p>
     <div class="modal-row"><span class="k">Números</span><span class="v" id="nequiPayNums">—</span></div>
     <div class="modal-row"><span class="k">Valor a enviar</span><span class="v" id="nequiPayAmount">$0</span></div>
     <div class="nequi-box">
       <p class="nequi-box-k">Cuenta oficial Nequi</p>
       <p class="nequi-box-num">3150505240</p>
       <button class="btn btn-gold btn-sm" type="button" id="copyNequiBtn2" data-copy-nequi="3150505240">Copiar 3150505240</button>
-      <p class="nequi-box-hint">1. Abre Nequi en tu celular.<br>2. Envía exactamente ese valor a <strong>3150505240</strong>.<br>3. En el grupo de WhatsApp, manda el comprobante a un administrador e informa: <strong>nombre completo</strong>, <strong>tablero</strong> y <strong>número(s)</strong> que elegiste.<br>4. Cuando confirmen, tu número pasa a verde y queda asegurado. Si no llega el comprobante, a los 15 minutos se libera.</p>
+      <p class="nequi-box-hint">1. Envía el valor a Nequi.<br>2. En el grupo, manda el comprobante + nombre, tablero y número(s).<br>3. Queda verde cuando lo confirmen. Si no, se suelta a los 15 min.</p>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-gold btn-block" id="nequiPayDone" type="button">Entendido, voy a pagar</button>
+      <button class="btn btn-gold btn-block" id="nequiPayDone" type="button">Listo, voy a Nequi</button>
     </div>
   </div>
 
@@ -327,8 +335,8 @@
     <h3>Cómo funciona Dorado</h3>
     <div class="how-list">
       <p><span class="hi">01</span>Elige un tablero de juego según el valor que quieras jugar.</p>
-      <p><span class="hi">02</span>Selecciona uno o varios números del 00 al 99 y paga.</p>
-      <p><span class="hi">03</span>Envía el comprobante a un administrador del grupo e informa tu nombre completo, en qué tablero estás jugando y el número o números que elegiste. Sin comprobante el número se libera a los 15 minutos. Cuando confirman, queda en verde y queda asegurado.</p>
+      <p><span class="hi">02</span>Elige números y pulsa Pagar con Nequi. Marcar no reserva.</p>
+      <p><span class="hi">03</span>Paga, manda el comprobante con nombre, tablero y número(s). Sin eso, se libera a los 15 min.</p>
       <p><span class="hi">04</span>Siempre hay ganador: se juega el premio sobre los números verdes y pagos. El premio es el 50% de lo recaudado.</p>
       <p><span class="hi">05</span>El sorteo es todos los días, lunes a domingo, a las 9:00 p. m. Quienes tienen número pago en ese tablero ven la cuenta 10 a 0 y al ganador (número, nombre, ciudad y premio del 50%).</p>
       <p><span class="hi">06</span>A los 10 segundos el tablero se abre de nuevo. Si ganas, el administrador te envía el premio a tu Nequi.</p>

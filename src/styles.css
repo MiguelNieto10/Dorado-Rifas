@@ -290,6 +290,21 @@
   .card-head h2{font-size:2.1rem;}
   .card-head .meta-row{display:flex; gap:22px; margin-top:10px; flex-wrap:wrap;}
 
+  .play-steps{
+    list-style:none; display:flex; flex-wrap:wrap; gap:8px; margin:0 0 8px; padding:0;
+  }
+  .play-steps li{
+    display:flex; align-items:center; gap:8px;
+    background:var(--surface); border:1px solid var(--border); border-radius:100px;
+    padding:6px 12px 6px 8px; font-size:0.78rem; color:var(--text-dim);
+  }
+  .play-steps b{
+    font-family:var(--font-mono); font-size:0.72rem; width:20px; height:20px; border-radius:50%;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:var(--gold-wash); color:var(--gold-bright); border:1px solid var(--gold-dim);
+  }
+  .play-steps-note{font-size:0.78rem; color:var(--text-faint); margin:0 0 14px;}
+  .sel-hint{flex:1 1 100%; margin:4px 0 0; font-size:0.75rem; color:var(--gold-bright);}
   .grid-legend{display:flex; gap:18px; flex-wrap:wrap; margin-bottom:16px; font-size:0.76rem; color:var(--text-dim);}
   .grid-legend .lg-swatch{width:13px; height:13px; border-radius:4px; display:inline-block; margin-right:6px; vertical-align:-2px;}
 
