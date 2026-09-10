@@ -638,6 +638,11 @@
   }
   .auth-tabs button.active{color:var(--gold-bright); background:var(--gold-wash); border-color:var(--gold-dim);}
   body.admin-entry .auth-tabs{display:none !important;}
+  body.admin-entry #authFullNameWrap,
+  body.admin-entry #authEmailWrap,
+  body.admin-entry #authPhoneWrap,
+  body.admin-entry #authForgotWrap,
+  body.admin-entry #authUseBioWrap{display:none !important;}
   .auth-switch{margin-top:16px; text-align:center; font-size:0.82rem;}
   .auth-switch a, .auth-switch button{
     color:var(--gold-bright); background:none; border:none; font:inherit; padding:0;

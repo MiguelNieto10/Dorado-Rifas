@@ -28,8 +28,17 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="/src/styles.css">
-</head>
+    </head>
 <body>
+<script>
+(function(){
+  var path = (location.pathname || "/").replace(/\/+$/, "") || "/";
+  if (path === "/admin" || /(?:^|[?&])admin(?:&|=|$)/.test(location.search)) {
+    document.documentElement.classList.add("admin-entry");
+    document.body.classList.add("admin-entry");
+  }
+})();
+</script>
 <div class="auth-gate" id="authGate">
   <div class="auth-brand">
     <img class="auth-logo" src="/logo.png?v=7" alt="Dorado — Gana al Instante">
@@ -46,7 +55,7 @@
         <button type="button" class="active" id="authModeRegister">Crear cuenta</button>
         <button type="button" id="authModeLogin">Ya tengo cuenta</button>
       </div>
-      <form id="authForm">
+      <form id="authForm" novalidate>
         <label>Nombre de usuario *
           <input class="input-field" id="authUsername" name="username" autocomplete="username" required minlength="3" placeholder="ej. James_R">
         </label>

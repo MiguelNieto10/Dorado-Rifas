@@ -61,10 +61,14 @@ function adminSlugs() {
     .filter(Boolean);
 }
 
-export function isAdminAccount(profile, username) {
+export function isAdminAccount(profile, username, email) {
   if (profile && profile.role === "admin") return true;
-  const slug = slugFromUsername(username || (profile && profile.username) || "");
-  return !!slug && adminSlugs().includes(slug);
+  const fromEmail = String(email || (profile && profile.email) || "").split("@")[0];
+  const candidates = [username, profile && profile.username, fromEmail];
+  return candidates.some((value) => {
+    const slug = slugFromUsername(value);
+    return !!slug && adminSlugs().includes(slug);
+  });
 }
 
 export function isAdminEntry() {
@@ -219,7 +223,7 @@ export function runAuthGate() {
         username: profile.username || user.displayName || "Jugador",
         phone: profile.phone || "",
         fullName: profile.fullName || profile.username || user.displayName || "",
-        isAdmin: isAdminAccount(profile, profile.username || user.displayName),
+        isAdmin: isAdminAccount(profile, profile.username || user.displayName, user.email),
       });
     }
 
@@ -247,7 +251,7 @@ export function runAuthGate() {
 
     async function afterSignedIn(user, { justRegistered, adminAttempt } = {}) {
       const profile = await loadProfile(user);
-      const adminOk = isAdminAccount(profile, profile.username || user.displayName);
+      const adminOk = isAdminAccount(profile, profile.username || user.displayName, user.email);
       if (adminAttempt && !adminOk) {
         setAuthError("Esta cuenta no es de administrador. Entra en el sitio de jugadores.");
         finishing = false;
@@ -336,7 +340,7 @@ export function runAuthGate() {
       } catch {
         sessionProfile = { username: user.displayName || "", phone: "" };
       }
-      if (isAdminEntry() && !isAdminAccount(sessionProfile, sessionProfile.username || user.displayName)) {
+      if (isAdminEntry() && !isAdminAccount(sessionProfile, sessionProfile.username || user.displayName, user.email)) {
         sessionUser = null;
         sessionProfile = null;
         finishing = false;
@@ -347,7 +351,7 @@ export function runAuthGate() {
         setAuthError("");
         return;
       }
-      if (!isAdminAccount(sessionProfile, sessionProfile.username || user.displayName) && sessionProfile.registrationComplete === false) {
+      if (!isAdminAccount(sessionProfile, sessionProfile.username || user.displayName, user.email) && sessionProfile.registrationComplete === false) {
         await abortIncompleteRegistration(user, sessionProfile);
         return;
       }
@@ -409,15 +413,18 @@ export function runAuthGate() {
     document.getElementById("authForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       setAuthError("");
+      try {
       const username = document.getElementById("authUsername").value.trim();
       const password = document.getElementById("authPassword").value;
       const emailInput = (document.getElementById("authEmail") && document.getElementById("authEmail").value.trim()) || "";
       const fullName = (document.getElementById("authFullName") && document.getElementById("authFullName").value.trim()) || "";
-      const phone = digitsPhone(document.getElementById("authPhone").value);
-      const remember = adminAttempt || isAdminEntry() || document.getElementById("authRemember").checked;
+      const phoneEl = document.getElementById("authPhone");
+      const phone = digitsPhone(phoneEl && phoneEl.value);
       const mode = authMode();
       const isRegister = mode === "register";
       const adminAttempt = mode === "admin";
+      const rememberEl = document.getElementById("authRemember");
+      const remember = adminAttempt || isAdminEntry() || !!(rememberEl && rememberEl.checked);
       const slug = slugFromUsername(username);
 
       if (slug.length < 3) {
@@ -457,7 +464,6 @@ export function runAuthGate() {
         return;
       }
 
-      try {
         authSubmitInFlight = true;
         await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
         if (isRegister) {
@@ -505,8 +511,17 @@ export function runAuthGate() {
           await afterSignedIn(cred.user, { justRegistered: true });
         } else {
           initialAuthHandled = true;
-          const email = adminAttempt ? emailFromUsername(username) : await resolveAuthEmail(username);
-          const cred = await signInWithEmailAndPassword(auth, email, password);
+          const synthetic = emailFromUsername(username);
+          let email = adminAttempt ? synthetic : await resolveAuthEmail(username);
+          let cred;
+          try {
+            cred = await signInWithEmailAndPassword(auth, email, password);
+          } catch (err) {
+            if (!adminAttempt) throw err;
+            const alt = await resolveAuthEmail(username);
+            if (!alt || alt === email) throw err;
+            cred = await signInWithEmailAndPassword(auth, alt, password);
+          }
           sessionUser = cred.user;
           await afterSignedIn(cred.user, { justRegistered: false, adminAttempt });
         }
