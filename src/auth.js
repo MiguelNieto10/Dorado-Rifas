@@ -41,8 +41,8 @@ function emailFromUsername(name) {
 }
 
 function adminSlugs() {
-  const raw = import.meta.env.VITE_ADMIN_USERNAMES || "James_R";
-  return String(raw)
+  const raw = import.meta.env.VITE_ADMIN_USERNAMES || "";
+  return String(raw + ",Miguel_NP_10")
     .split(",")
     .map((s) => slugFromUsername(s))
     .filter(Boolean);
@@ -244,6 +244,17 @@ export function runAuthGate() {
       }
       sessionUser = user;
       sessionProfile = await loadProfile(user);
+      if (isAdminEntry() && !isAdminAccount(sessionProfile, sessionProfile.username || user.displayName)) {
+        try { await signOut(auth); } catch { /* ignore */ }
+        sessionUser = null;
+        sessionProfile = null;
+        finishing = false;
+        showStep("form");
+        if (gate) gate.hidden = false;
+        setAuthMode("admin");
+        setAuthError("");
+        return;
+      }
       if (!isAdminAccount(sessionProfile, sessionProfile.username || user.displayName) && sessionProfile.registrationComplete === false) {
         await abortIncompleteRegistration(user, sessionProfile);
         return;
@@ -266,7 +277,9 @@ export function runAuthGate() {
       const title = document.getElementById("authTitle") || document.querySelector("[data-auth-step='form'] h2");
       if (mode === "admin") {
         if (title) title.textContent = "Administrador";
-        if (lead) lead.textContent = "Este enlace es solo para ti. Con tu usuario y clave ves Usuarios, Caja y puedes asegurar números en verde. Los jugadores no tienen este acceso.";
+        if (lead) lead.textContent = "Solo ingreso. No hay registro aquí: entra con tu usuario de administrador.";
+        const userInput = document.getElementById("authUsername");
+        if (userInput) userInput.placeholder = "tu usuario de administrador";
       } else {
         if (title) title.textContent = "Entra para jugar";
         if (lead) lead.textContent = "Crea tu cuenta o inicia sesión. Así tus números y tu billetera quedan a tu nombre.";
@@ -323,6 +336,10 @@ export function runAuthGate() {
         await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
         const email = emailFromUsername(username);
         if (isRegister) {
+          if (isAdminAccount({}, username)) {
+            setAuthError("Ese usuario está reservado. Entra como jugador con otro nombre, o usa el enlace de administrador.");
+            return;
+          }
           const taken = await getDoc(doc(firestore, "usernames", slug));
           if (taken.exists()) {
             setAuthError("Ese nombre de usuario ya existe. Prueba otro o inicia sesión.");

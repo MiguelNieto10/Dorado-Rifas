@@ -528,6 +528,7 @@
     border-radius:100px; padding:8px 8px; font-size:0.74rem; font-weight:600;
   }
   .auth-tabs button.active{color:var(--gold-bright); background:var(--gold-wash); border-color:var(--gold-dim);}
+  body.admin-entry .auth-tabs{display:none !important;}
   .auth-switch{margin-top:16px; text-align:center; font-size:0.82rem;}
   .auth-switch a{color:var(--gold-bright);}
   .auth-card label{display:block; font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); margin-top:10px;}
