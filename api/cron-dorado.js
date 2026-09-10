@@ -31,6 +31,7 @@ export default async function handler(req, res) {
     const { date, hour } = bogotaStamp();
     const runDraw = hour >= DRAW_HOUR_BOGOTA;
     const result = [];
+    let started = false;
     for (const value of CARD_VALUES) {
       const ref = db.collection("cards").doc(String(value));
       const snap = await ref.get();
@@ -38,8 +39,13 @@ export default async function handler(req, res) {
       card.value = value;
       if (!card.numbers) card.numbers = {};
       expireHolds(card);
-      if (runDraw && card.status === "open") {
+      if (runDraw && card.status === "open" && !started) {
+        const before = card.status;
         startDraw(card, false);
+        if (card.status === "drawing") started = true;
+        if (before === "open" && card.status === "open") {
+          /* tablero sin verdes: se marca el día y sigue el siguiente */
+        }
       }
       await ref.set(cardForDb(card));
       result.push({ value, status: card.status, lastDrawDate: card.lastDrawDate, date });

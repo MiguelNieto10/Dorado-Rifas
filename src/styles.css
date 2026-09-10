@@ -88,12 +88,13 @@
      TOPBAR
      ============================================================ */
   .topbar{
-    position:sticky; top:29px; z-index:39;
-    display:flex; align-items:center; gap:24px;
+    position:sticky; top:29px; z-index:50;
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
     padding:16px clamp(16px,4vw,40px);
-    background:rgba(10,11,13,0.86);
+    background:rgba(10,11,13,0.92);
     backdrop-filter:blur(10px);
     border-bottom:1px solid var(--border-soft);
+    pointer-events:auto;
   }
   .brand{display:flex; align-items:center; margin-right:auto; background:none; border:none; padding:0; color:inherit;}
   .brand-logo{height:52px; width:auto; display:block; object-fit:contain; background:transparent;}
@@ -114,15 +115,15 @@
     padding:10px clamp(16px,4vw,40px);
     background:rgba(17,19,25,0.96);
     border-bottom:1px solid var(--border-soft);
-    position:sticky; top:73px; z-index:38;
+    position:sticky; top:93px; z-index:49;
+    pointer-events:auto;
   }
   body.is-admin .admin-bar{display:flex !important;}
   .admin-bar button[data-nav]{
+    display:inline-flex !important;
     background:var(--surface-2); border:1px solid var(--border); color:var(--text-dim);
     border-radius:100px; padding:7px 12px; font-size:0.78rem; font-weight:600;
-  }
-  @media (min-width:721px){
-    .admin-bar button[data-nav]{display:none;}
+    cursor:pointer;
   }
   .admin-bar button[data-nav].active{color:var(--gold-bright); border-color:var(--gold-dim); background:var(--gold-wash);}
   .admin-filter-item{
@@ -202,7 +203,15 @@
   .wallet-chip .lbl{font-size:0.62rem; color:var(--text-faint); letter-spacing:0.06em; text-transform:uppercase; display:block; margin-bottom:1px;}
 
   @media (max-width: 720px){
-    .nav{display:none;}
+    .topbar{gap:10px; padding:12px 14px;}
+    .nav{
+      display:flex;
+      width:100%;
+      flex-wrap:wrap;
+      gap:4px;
+    }
+    .nav button{padding:8px 10px; font-size:0.78rem;}
+    .admin-bar{top:auto; position:relative; z-index:48;}
   }
 
   .view[hidden]{display:none;}
@@ -344,7 +353,19 @@
   body.is-admin .admin-live-lists{
     display:block; margin:0; padding:12px clamp(16px,4vw,40px) 16px;
     background:rgba(17,19,25,0.98); border-bottom:1px solid var(--border-soft);
+    position:relative; z-index:1;
   }
+  .draw-alert{
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    margin:0; padding:12px clamp(16px,4vw,40px);
+    background:linear-gradient(90deg, rgba(201,162,75,0.18), rgba(17,19,25,0.96));
+    border-bottom:1px solid var(--gold-dim);
+    color:var(--text);
+    font-size:0.92rem;
+    position:relative; z-index:47;
+  }
+  .draw-alert[hidden]{display:none !important;}
+  .draw-alert p{margin:0; max-width:70ch; color:var(--text);}
   .admin-live-lead{font-size:0.88rem; color:var(--text-dim); margin:8px 0 16px; max-width:52ch;}
   .admin-live-board{
     background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-m);

@@ -148,9 +148,14 @@
     <input id="adminDate" type="date">
   </label>
   <button class="btn btn-outline btn-sm" type="button" id="adminReload">Actualizar</button>
+  <button class="btn btn-gold btn-sm" type="button" id="adminWarnDraw">Avisar sorteo (5 min)</button>
   <a class="btn btn-ghost btn-sm" href="/" target="dorado-player">Sitio de jugadores</a>
 </div>
 <div id="adminLiveLists" class="admin-live-lists"></div>
+<div id="drawAlert" class="draw-alert" hidden>
+  <p id="drawAlertText">En 5 minutos inicia el sorteo.</p>
+  <button class="btn btn-gold btn-sm" type="button" id="drawAlertOk">Entendido</button>
+</div>
 
 <main>
   <!-- ===================== VISTA: LOBBY ===================== -->

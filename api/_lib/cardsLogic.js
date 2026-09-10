@@ -77,10 +77,15 @@ export function bogotaStamp() {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
+    minute: "2-digit",
     hourCycle: "h23",
   });
   const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p) => [p.type, p.value]));
-  return { date: parts.year + "-" + parts.month + "-" + parts.day, hour: parseInt(parts.hour, 10) };
+  return {
+    date: parts.year + "-" + parts.month + "-" + parts.day,
+    hour: parseInt(parts.hour, 10),
+    minute: parseInt(parts.minute, 10),
+  };
 }
 
 export function startDraw(card, force) {

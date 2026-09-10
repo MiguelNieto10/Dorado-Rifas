@@ -1,4 +1,5 @@
-import { connectFirestore } from "./db.js";
+import { connectFirestore, getFirebaseApp } from "./db.js";
+import { getAuth } from "firebase/auth";
 import { runAuthGate, signOutSession, isAdminEntry } from "./auth.js";
 import { createDrawRecorder } from "./drawRecord.js";
 import { archiveDrawVideo, bogotaDateKey } from "./drawStore.js";
@@ -118,21 +119,75 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       month: '2-digit',
       day: '2-digit',
       hour: '2-digit',
+      minute: '2-digit',
       hourCycle: 'h23'
     });
     const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p)=>[p.type, p.value]));
-    return { date: parts.year + '-' + parts.month + '-' + parts.day, hour: parseInt(parts.hour, 10) };
+    return { date: parts.year + '-' + parts.month + '-' + parts.day, hour: parseInt(parts.hour, 10), minute: parseInt(parts.minute, 10) };
   }
-  function maybeScheduledDraws(){
-    if(!isAdmin) return;
+  function nextQueuedBoard(date){
+    const busy = CARD_VALUES.some((value)=>{
+      const card = cardsCache[value];
+      return card && (card.status === 'drawing' || card.status === 'revealed');
+    });
+    if(busy) return null;
+    return CARD_VALUES.find((value)=>{
+      const card = cardsCache[value];
+      if(!card || card.status !== 'open') return false;
+      if(card.lastDrawDate === date) return false;
+      return paidNumbers(card).length > 0;
+    });
+  }
+  function startNextQueuedBoard(){
     const { date, hour } = bogotaStamp();
     if(hour < DRAW_HOUR_BOGOTA) return;
-    CARD_VALUES.forEach((value)=>{
+    const value = nextQueuedBoard(date);
+    if(value == null) return;
+    startCountdown(cardsCache[value], false);
+  }
+  function playerHasPaidTonight(){
+    return CARD_VALUES.some((value)=>{
       const card = cardsCache[value];
-      if(!card || card.status === 'drawing') return;
-      if(card.lastDrawDate === date) return;
-      startCountdown(card, false);
+      if(!card) return false;
+      return paidNumbers(card).some((n)=> slotBelongsToMe(card.numbers[n]));
     });
+  }
+  function showDrawAlertBanner(text){
+    const { date } = bogotaStamp();
+    const key = 'dorado.drawAlert.' + date;
+    if(sessionStorage.getItem(key) === '1') return;
+    const box = document.getElementById('drawAlert');
+    const msg = document.getElementById('drawAlertText');
+    if(!box || !msg) return;
+    msg.textContent = text || 'En 5 minutos inicia el sorteo. Se juega tablero por tablero, empezando por $2.000, solo con números verdes y pagos.';
+    box.hidden = false;
+  }
+  function hideDrawAlertBanner(){
+    const box = document.getElementById('drawAlert');
+    if(box) box.hidden = true;
+    sessionStorage.setItem('dorado.drawAlert.' + bogotaStamp().date, '1');
+  }
+  let drawAlertPosted = false;
+  async function kickDrawAlert(){
+    const text = 'En 5 minutos inicia el sorteo. Se juega tablero por tablero, empezando por $2.000. Solo entran números verdes y pagos.';
+    if(isAdmin || playerHasPaidTonight()) showDrawAlertBanner(text);
+    if(drawAlertPosted || !isAdmin) return;
+    drawAlertPosted = true;
+    try{
+      const app = getFirebaseApp();
+      const user = app && getAuth(app).currentUser;
+      const token = user ? await user.getIdToken() : '';
+      await fetch('/api/aviso-sorteo', {
+        method: 'POST',
+        headers: token ? { Authorization: 'Bearer ' + token } : {}
+      });
+    } catch { /* el aviso en pantalla ya se mostró */ }
+  }
+  function maybeScheduledDraws(){
+    const { hour, minute } = bogotaStamp();
+    if(hour === 20 && minute >= 55) kickDrawAlert();
+    if(hour < DRAW_HOUR_BOGOTA) return;
+    startNextQueuedBoard();
   }
 
   const BOARD_LIVE_GEN = 4;
@@ -289,6 +344,15 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         }
       }, ()=>{});
     });
+
+    const noticeDate = bogotaStamp().date;
+    db.doc('notices/draw-' + noticeDate).onSnapshot((snap)=>{
+      if(!snap.exists) return;
+      const notice = snap.data() || {};
+      if(!notice.sent) return;
+      const mine = (notice.uids || []).includes(currentUid) || playerHasPaidTonight();
+      if(isAdmin || mine) showDrawAlertBanner(notice.text);
+    }, ()=>{});
   }
 
   function reloadBoardsFromDb(){
@@ -371,6 +435,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
   // ---------- 5. NAVEGACIÓN ENTRE VISTAS ----------
   function showView(name){
+    name = String(name || '').trim();
     if(name === 'wallet') name = 'lobby';
     const next = document.getElementById('view-'+name);
     if(!next) return;
@@ -712,6 +777,9 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     if(pool.length === 0) return;
     if(card.status === 'drawing' && card.pendingWinner) return;
     if(card.status === 'revealed') return;
+    if(!force){
+      card.lastDrawDate = bogotaStamp().date;
+    }
     card.status = 'drawing';
     card.spinEndsAt = Date.now() + SPIN_MS;
     card.pendingWinner = pool[Math.floor(Math.random()*pool.length)];
@@ -1017,6 +1085,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     selectedNumbers.clear();
     saveCard(card.value);
     toast('El tablero de ' + fmt(card.value) + ' se habilitó de nuevo');
+    startNextQueuedBoard();
   }
 
   // Botón de emergencia: deja el cartón abierto como el primer día
@@ -1196,12 +1265,24 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         window.open('/', 'dorado-player');
         return;
       }
-      const navBtn = t.closest('button[data-nav]');
-      if(navBtn){ showView(navBtn.dataset.nav); return; }
-
+      const navBtn = t.closest('[data-nav]');
+      if(navBtn && (navBtn.tagName === 'BUTTON' || navBtn.getAttribute('role') === 'button')){
+        showView(navBtn.dataset.nav);
+        return;
+      }
       if(t.closest('#logoutBtn')){ signOutSession(); return; }
       if(t.closest('#adminReload')){
         reloadBoardsFromDb();
+        return;
+      }
+      if(t.closest('#adminWarnDraw')){
+        drawAlertPosted = false;
+        kickDrawAlert();
+        toast('Aviso de sorteo enviado a quienes tienen números verdes.');
+        return;
+      }
+      if(t.closest('#drawAlertOk')){
+        hideDrawAlertBanner();
         return;
       }
       if(t.closest('#walletChip')){ showView('wallet'); return; }
