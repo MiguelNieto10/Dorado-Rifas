@@ -1,5 +1,4 @@
-import { connectFirestore, getFirebaseApp } from "./db.js";
-import { getAuth } from "firebase/auth";
+import { connectFirestore } from "./db.js";
 import { runAuthGate, signOutSession, isAdminEntry } from "./auth.js";
 import { createDrawRecorder } from "./drawRecord.js";
 import { archiveDrawVideo, bogotaDateKey } from "./drawStore.js";
@@ -43,7 +42,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   const DEMO_SPEED = true;
   const SPIN_MS = 10000; // 10 segundos: el temporizador cuenta 10, 9, 8… hasta 0
   const REVEAL_HOLD_MS = 10000; // ganador visible 10 s, sin cuenta en pantalla, luego se reabre
-  const HOLD_MS = 15 * 60 * 1000; // sin comprobante, el número se libera
+  const HOLD_MS = 30 * 60 * 1000; // sin comprobante, el número se libera
   const DRAW_HOUR_BOGOTA = 21;
 
   const PROFILE = { name: 'Jugador', city: 'Bogotá' };
@@ -319,47 +318,25 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     if(openCardValue === value) renderCardDetail(value);
     renderAdminLiveLists();
     if(!usingDb) return;
-    apiCard({ action: 'reserve', value, numbers: keys });
+    const fields = { sold: card.sold, boardGen: BOARD_LIVE_GEN };
+    keys.forEach((n)=>{
+      fields['numbers.' + n] = card.numbers[n] || null;
+    });
+    db.doc('cards/'+value).patch(fields).catch((err)=>{
+      db.doc('cards/'+value).set(cardToDb(card)).catch((e)=>console.error(e));
+    });
   }
 
   function saveCard(value){
     const card = cardsCache[value];
+    if(usingDb){
+      db.doc('cards/'+value).set(cardToDb(card)).catch((err)=>{
+        console.error('No se guardó el tablero', value, err);
+      });
+    }
     renderLobbyCard(value);
     if(openCardValue === value) renderCardDetail(value);
     renderAdminLiveLists();
-    if(!usingDb) return;
-    if(!isAdmin) return;
-    apiCard({ action: 'save', value, card: cardToDb(card) });
-  }
-
-  async function apiCard(payload){
-    try{
-      const app = getFirebaseApp();
-      const user = app && getAuth(app).currentUser;
-      const token = user ? await user.getIdToken() : '';
-      const res = await fetch('/api/card', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json().catch(()=>({}));
-      if(!res.ok){
-        console.error('Tablero no guardado', payload.action, data.error);
-        if(data.error) toast(data.error);
-        return null;
-      }
-      if(data.card && payload.value != null){
-        cardsCache[payload.value] = JSON.parse(JSON.stringify(data.card));
-        if(!cardsCache[payload.value].numbers) cardsCache[payload.value].numbers = {};
-        renderLobbyCard(payload.value);
-        if(openCardValue === payload.value) renderCardDetail(payload.value);
-        renderAdminLiveLists();
-      }
-      return data;
-    }catch(err){
-      console.error(err);
-      return null;
-    }
   }
 
   function addActivity(kind, desc, amount){
@@ -401,8 +378,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     slot.confirmed = true;
     delete slot.heldUntil;
     recountSold(card);
-    if(usingDb) apiCard({ action: 'confirm', value, num });
-    else saveCard(value);
+    saveCard(value);
     toast('Número ' + num + ' del tablero ' + fmt(value) + ' asegurado en verde.');
     return true;
   }
@@ -432,7 +408,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         if(!slot) continue;
         const held = isHeld(slot);
         const paid = isPaid(slot);
-        const estado = held ? 'Reservado 15 min' : (paid ? 'Verde · asegurado' : 'Pendiente');
+        const estado = held ? 'Reservado 30 min' : (paid ? 'Verde · asegurado' : 'Pendiente');
         const cls = held ? 'held' : (paid ? 'green' : '');
         const who = slot.fullName || slot.owner || '—';
         const user = slot.owner && slot.owner !== who ? ' · @' + slot.owner : '';
@@ -504,10 +480,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   function renderLobbyCard(value){
     const card = cardsCache[value];
     if(!card) return;
-    if(expireHolds(card)){
-      if(usingDb) apiCard({ action: 'expire', value });
-      else saveCard(value);
-    }
+    if(expireHolds(card)) saveCard(value);
     let el = document.getElementById('ticket-'+value);
     if(!el){
       el = document.createElement('div');
@@ -524,7 +497,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       '</div>' +
       '<div class="progress-track"><div class="progress-fill" style="width:' + card.sold + '%"></div></div>' +
       '<div class="progress-meta"><span>Números vendidos</span><span class="mono">' + card.sold + '/100</span></div>' +
-      (heldCount ? '<div class="progress-meta"><span>Reservados (15 min)</span><span class="mono">' + heldCount + '</span></div>' : '') +
+      (heldCount ? '<div class="progress-meta"><span>Reservados (30 min)</span><span class="mono">' + heldCount + '</span></div>' : '') +
       '<div class="pot-line"><span class="k">Premio actual</span><span class="v">' + fmt(pot) + '</span></div>' +
       '<button class="btn btn-gold btn-block" data-open="' + value + '">Ver tablero</button>';
     // El clic en "Ver cartón" lo maneja el oyente central de la
@@ -537,10 +510,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   function renderCardDetail(value){
     const card = cardsCache[value];
     if(!card) return;
-    if(expireHolds(card)){
-      if(usingDb) apiCard({ action: 'expire', value });
-      else saveCard(value);
-    }
+    if(expireHolds(card)) saveCard(value);
     document.getElementById('cdTitle').textContent = fmt(value);
     document.getElementById('cdSold').textContent = card.sold + '/100';
     document.getElementById('cdPot').textContent = fmt(card.sold * value * 0.5);
@@ -563,7 +533,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         dot.className = 'owner-dot';
         dot.textContent = (owner.owner === PROFILE.name || owner.owner === 'Tú') ? 'Tú' : (owner.owner || '').split(' ')[0];
         cell.appendChild(dot);
-        cell.title = 'Reservado 15 min · envía el comprobante a un administrador';
+        cell.title = 'Reservado 30 min · envía el comprobante a un administrador';
         if(isAdmin) cell.title += ' · clic para asegurar (verde)';
       } else if(owner){
         cell.className = 'num-cell taken' + ((owner.owner === PROFILE.name || owner.owner === 'Tú') ? ' taken-user' : '');
@@ -713,13 +683,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   // un sonido y un mensaje, y abre la pantalla de sorteo con el
   // temporizador visible de 10 a 0.
   function startCountdown(card, force){
-    if(usingDb){
-      apiCard({ action: 'start-draw', value: card.value, force: !!force }).then((data)=>{
-        const next = data && data.card ? cardsCache[card.value] : card;
-        if(next && next.status === 'drawing') runDrawAnimation(next);
-      });
-      return;
-    }
     const pool = paidNumbers(card);
     if(pool.length === 0) return;
     if(card.status === 'drawing' && card.pendingWinner) return;
@@ -866,12 +829,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
   function finishDraw(card){
     if(!card || !card.pendingWinner) return;
-    if(usingDb && !card.drawSettled){
-      apiCard({ action: 'settle', value: card.value }).then((data)=>{
-        if(data && data.card) finishDraw(cardsCache[card.value]);
-      });
-      return;
-    }
     const winnerSlot = card.numbers[card.pendingWinner];
     const value = card.value;
     const prize = (card.drawCollected != null ? card.drawCollected : paidNumbers(card).length * value) * 0.5;
@@ -888,8 +845,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       card.revealEndsAt = Date.now() + REVEAL_HOLD_MS;
       card.history = [{ winningNumber:card.pendingWinner, winnerName, winnerCity, prize, wonByUser:false, ts:Date.now(), winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null }]
         .concat(card.history||[]).slice(0, 365);
-      if(!usingDb) saveCard(value);
-      if(!usingDb && db){
+      saveCard(value);
+      if(usingDb && db){
         db.doc('draws/' + drawKey).set({
           cardValue: value,
           winningNumber: card.pendingWinner,
@@ -1025,11 +982,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       if(layer) layer.innerHTML = '';
     }
     drawRunning[card.value] = false;
-
-    if(usingDb){
-      apiCard({ action: 'reopen', value: card.value });
-      return;
-    }
 
     if(card.status === 'open' && card.sold === 0) return;
 
@@ -1357,10 +1309,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       CARD_VALUES.forEach((value)=>{
         const card = cardsCache[value];
         if(!card) return;
-        if(expireHolds(card)){
-      if(usingDb) apiCard({ action: 'expire', value });
-      else saveCard(value);
-    }
+        if(expireHolds(card)) saveCard(value);
         if(card.status === 'drawing' && card.spinEndsAt && Date.now() >= card.spinEndsAt + 2000){
           finishDraw(card);
         }
