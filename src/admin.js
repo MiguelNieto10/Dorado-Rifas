@@ -5,6 +5,7 @@
 import { getFirestore, collection, getDocs } from "firebase/firestore";
 import { getFirebaseApp } from "./db.js";
 import { slugFromUsername, WHATSAPP_GROUP_LINK } from "./auth.js";
+import { isWithinVideoRetention, pruneExpiredDrawArchives } from "./drawStore.js";
 
 const CARD_VALUES = [2000, 5000, 10000, 20000, 50000, 100000];
 
@@ -223,7 +224,7 @@ function dateHeading(key) {
 
 function renderVideos(root, bundle, mode, dateStr) {
   const draws = bundle.draws
-    .filter((d) => inRange(d.ts, mode, dateStr))
+    .filter((d) => isWithinVideoRetention(d.ts) && inRange(d.ts, mode, dateStr))
     .slice()
     .sort((a, b) => (Number(b.ts) || 0) - (Number(a.ts) || 0));
   if (!draws.length) {
@@ -312,6 +313,7 @@ export async function refreshAdminViews(cardsCache) {
   cajaEl.innerHTML = '<div class="empty-note">Cargando…</div>';
   videosEl.innerHTML = '<div class="empty-note">Cargando…</div>';
 
+  await pruneExpiredDrawArchives();
   cachedBundle = await loadAdminBundle(cardsCache);
   const mode = document.getElementById("adminRange")?.value || "all";
   const dateStr = document.getElementById("adminDate")?.value || "";
