@@ -1,5 +1,5 @@
 import { connectFirestore } from "./db.js";
-import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
+import { runAuthGate, signOutSession, WHATSAPP_GROUP_LINK, isAdminEntry } from "./auth.js";
 import { createDrawRecorder } from "./drawRecord.js";
 import { archiveDrawVideo, bogotaDateKey } from "./drawStore.js";
 import { bindAdminFilters, refreshAdminViews } from "./admin.js";
@@ -1048,9 +1048,16 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       const stuckToast = document.getElementById('toast');
       if(stuckToast && !stuckToast.hidden){ stuckToast.hidden = true; }
 
+      const playSite = t.closest('a[target="dorado-player"]');
+      if(playSite){
+        e.preventDefault();
+        window.open('/', 'dorado-player');
+        return;
+      }
       const navBtn = t.closest('button[data-nav]');
       if(navBtn){ showView(navBtn.dataset.nav); return; }
 
+      if(t.closest('#logoutBtn')){ signOutSession(); return; }
       if(t.closest('#walletChip')){ showView('wallet'); return; }
       if(t.closest('#backBtn')){ showView('lobby'); return; }
       if(t.closest('#howBtn2') || t.closest('#demoInfoBtn')){ openModal('modalHow'); return; }
@@ -1165,7 +1172,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   runAuthGate().then((session)=>{
     PROFILE.name = session.username || 'Jugador';
     currentUid = session.uid;
-    isAdmin = !!session.isAdmin;
+    isAdmin = !!session.isAdmin && isAdminEntry();
     document.body.classList.toggle('is-admin', isAdmin);
     seedLocalIfEmpty();
     renderAll();

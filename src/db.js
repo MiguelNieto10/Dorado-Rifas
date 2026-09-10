@@ -12,10 +12,23 @@ export function getFirebaseConfig() {
   };
 }
 
+export function siteMode() {
+  const path = (typeof location === "undefined" ? "/" : location.pathname || "/").replace(/\/+$/, "") || "/";
+  if (path === "/admin" || path.endsWith("/admin.html")) return "admin";
+  if (typeof location !== "undefined" && new URLSearchParams(location.search).has("admin")) return "admin";
+  return "player";
+}
+
+export function siteWindowName() {
+  return siteMode() === "admin" ? "dorado-admin" : "dorado-player";
+}
+
 export function getFirebaseApp() {
   const config = getFirebaseConfig();
   if (!config.apiKey || !config.projectId) return null;
-  return getApps().length ? getApps()[0] : initializeApp(config);
+  const name = siteMode() === "admin" ? "dorado-admin" : "dorado-player";
+  const found = getApps().find((app) => app.name === name);
+  return found || initializeApp(config, name);
 }
 
 export function connectFirestore() {

@@ -47,7 +47,7 @@
         <button class="btn btn-gold btn-block" type="submit" id="authSubmit">Crear cuenta</button>
       </form>
       <p class="auth-switch" id="authForgotWrap"><button type="button" id="authForgotBtn">Olvidé mi clave</button></p>
-      <p class="auth-switch" id="authGoPlay" hidden><a href="/">Soy jugador — entrar a Dorado</a></p>
+      <p class="auth-switch" id="authGoPlay" hidden><a href="/" target="dorado-player">Soy jugador — abrir Dorado en otra ventana</a></p>
     </div>
 
     <div data-auth-step="reset" hidden>
@@ -98,6 +98,7 @@
     <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-4M3 7l7-4 4 4"/><circle cx="17" cy="14" r="1.4" fill="currentColor" stroke="none"/></svg>
     <span><span class="lbl">Saldo</span><span class="amt" id="walletBalance">$0</span></span>
   </button>
+  <button class="logout-btn" id="logoutBtn" type="button">Cerrar sesión</button>
 </header>
 
 <div class="admin-bar">
@@ -117,6 +118,7 @@
     <input id="adminDate" type="date">
   </label>
   <button class="btn btn-outline btn-sm" type="button" id="adminReload">Actualizar</button>
+  <a class="btn btn-ghost btn-sm" href="/" target="dorado-player">Sitio de jugadores</a>
 </div>
 
 <main>

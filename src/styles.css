@@ -193,6 +193,11 @@
   .wallet-chip:hover{border-color:var(--gold-dim);}
   .wallet-chip:active{transform:scale(0.98);}
   .wallet-chip svg{width:16px; height:16px; stroke:var(--gold-bright); flex-shrink:0;}
+  .logout-btn{
+    background:none; border:1px solid var(--border); color:var(--text-dim);
+    border-radius:100px; padding:8px 12px; font-size:0.78rem; font-weight:600; white-space:nowrap;
+  }
+  .logout-btn:hover{color:var(--text); border-color:var(--gold-dim);}
   .wallet-chip .amt{font-family:var(--font-mono); font-weight:600; font-size:0.9rem;}
   .wallet-chip .lbl{font-size:0.62rem; color:var(--text-faint); letter-spacing:0.06em; text-transform:uppercase; display:block; margin-bottom:1px;}
 

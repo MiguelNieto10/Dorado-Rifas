@@ -20,7 +20,7 @@ import {
   signOut,
 } from "firebase/auth";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
-import { getFirebaseApp } from "./db.js";
+import { getFirebaseApp, siteWindowName } from "./db.js";
 
 const PASSKEY_ID_KEY = "dorado.passkey.cred";
 const PASSKEY_UID_KEY = "dorado.passkey.uid";
@@ -144,8 +144,20 @@ function setAuthError(msg) {
   el.hidden = !msg;
 }
 
+export async function signOutSession() {
+  sessionStorage.removeItem(UNLOCK_KEY);
+  const app = getFirebaseApp();
+  if (app) {
+    try {
+      await signOut(getAuth(app));
+    } catch { /* ignore */ }
+  }
+  location.reload();
+}
+
 export function runAuthGate() {
   return new Promise((resolve) => {
+    try { window.name = siteWindowName(); } catch { /* ignore */ }
     const app = getFirebaseApp();
     const gate = document.getElementById("authGate");
     if (!app) {
@@ -471,6 +483,13 @@ export function runAuthGate() {
       if (tabs) tabs.hidden = true;
       const goPlay = document.getElementById("authGoPlay");
       if (goPlay) goPlay.hidden = false;
+      const goPlayLink = goPlay && goPlay.querySelector("a");
+      if (goPlayLink) {
+        goPlayLink.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          window.open("/", "dorado-player");
+        });
+      }
       setAuthMode("admin");
     } else {
       syncRegisterFields();
