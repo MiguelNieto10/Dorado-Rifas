@@ -151,7 +151,16 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       return paidNumbers(card).some((n)=> slotBelongsToMe(card.numbers[n]));
     });
   }
-  const GROUP_ALERT_TEXT = '🏆 *Dorado Rifas*\nEn 5 minutos inicia el sorteo.\nSe juega tablero por tablero, empezando por *$2.000*.\nSolo entran números *verdes y pagos*.\nEntra a https://dorado-rifas.vercel.app';
+  const GROUP_ALERT_TEXT =
+    'Dorado Rifas\n' +
+    'En 5 minutos empieza el sorteo de hoy.\n\n' +
+    'Orden:\n' +
+    '1. Tablero de $2.000\n' +
+    '2. Luego $5.000, $10.000, $20.000, $50.000 y $100.000, en ese orden.\n\n' +
+    'Solo se sortea un tablero si tiene números en verde (pagos). Si no tiene verdes, se salta al siguiente.\n' +
+    'Entra a https://dorado-rifas.vercel.app';
+  const GROUP_ALERT_SCREEN =
+    'En 5 minutos empieza el sorteo. Primero el tablero de $2.000. Después $5.000, $10.000, $20.000, $50.000 y $100.000, en ese orden, solo si tienen números verdes (pagos). Si un tablero no tiene verdes, se salta.';
   function copyText(text){
     try{
       if(navigator.clipboard && navigator.clipboard.writeText){
@@ -191,7 +200,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     const box = document.getElementById('drawAlert');
     const msg = document.getElementById('drawAlertText');
     if(!box || !msg) return;
-    msg.textContent = text || 'En 5 minutos inicia el sorteo. Se juega tablero por tablero, empezando por $2.000, solo con números verdes y pagos.';
+    msg.textContent = text || GROUP_ALERT_SCREEN;
     const groupBtn = document.getElementById('drawAlertGroup');
     if(groupBtn) groupBtn.hidden = !isAdmin;
     box.hidden = false;
@@ -203,7 +212,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   }
   let drawAlertPosted = false;
   async function kickDrawAlert(){
-    const text = GROUP_ALERT_TEXT.replace(/\*/g, '');
+    const text = GROUP_ALERT_SCREEN;
     if(isAdmin || playerHasPaidTonight()) showDrawAlertBanner(text);
     if(drawAlertPosted) return;
     drawAlertPosted = true;
@@ -487,10 +496,11 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     currentView = name;
     document.querySelectorAll('.view').forEach(v=>v.hidden = true);
     next.hidden = false;
-    document.querySelectorAll('button[data-nav]').forEach(b=>{
+    document.querySelectorAll('[data-nav]').forEach(b=>{
       b.classList.toggle('active', b.dataset.nav === name);
     });
-    if(name === 'wallet') renderWalletView();
+    const live = document.getElementById('adminLiveLists');
+    if(live) live.hidden = !(isAdmin && name === 'lobby');
     if(name === 'historial') renderHistorialView();
     if(isAdmin && (name === 'admin-users' || name === 'admin-caja' || name === 'admin-videos')){
       refreshAdminViews(cardsCache);
@@ -1287,7 +1297,9 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   // crean después (como los números del cartón o "Cerrar" del sorteo).
   document.addEventListener('click', function(e){
     try{
-      const t = e.target;
+      let t = e.target;
+      if(t && t.nodeType !== 1) t = t.parentElement;
+      if(!t) return;
 
       // Seguridad extra: si un aviso anterior quedó pegado en pantalla
       // por más tiempo del que debería, lo escondemos apenas detectamos
@@ -1315,7 +1327,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       }
       if(t.closest('#adminWarnDraw') || t.closest('#drawAlertGroup')){
         sendTextToGroup(GROUP_ALERT_TEXT);
-        showDrawAlertBanner(GROUP_ALERT_TEXT.replace(/\*/g, ''));
+        showDrawAlertBanner(GROUP_ALERT_SCREEN);
         return;
       }
       if(t.closest('#drawAlertOk')){

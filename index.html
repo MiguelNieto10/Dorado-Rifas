@@ -132,10 +132,6 @@
 </header>
 
 <div class="admin-bar">
-  <button type="button" data-nav="lobby">Juego</button>
-  <button type="button" data-nav="admin-users">Usuarios</button>
-  <button type="button" data-nav="admin-caja">Caja</button>
-  <button type="button" data-nav="admin-videos">Sorteos</button>
   <label class="admin-filter-item">Periodo
     <select id="adminRange">
       <option value="all">Todo</option>
@@ -155,7 +151,7 @@
 <div id="drawAlert" class="draw-alert" hidden>
   <div class="draw-alert-card">
     <p class="draw-alert-kicker">Sorteo en 5 minutos</p>
-    <p id="drawAlertText">En 5 minutos inicia el sorteo. Se juega tablero por tablero, empezando por $2.000, solo con números verdes y pagos.</p>
+    <p id="drawAlertText">En 5 minutos empieza el sorteo. Primero el tablero de $2.000. Después $5.000, $10.000, $20.000, $50.000 y $100.000, en ese orden, solo si tienen números verdes (pagos). Si un tablero no tiene verdes, se salta.</p>
     <div class="draw-alert-actions">
       <button class="btn btn-gold" type="button" id="drawAlertGroup" hidden>Pegar en el grupo de WhatsApp</button>
       <button class="btn btn-outline" type="button" id="drawAlertOk">Entendido</button>

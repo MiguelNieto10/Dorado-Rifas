@@ -104,6 +104,7 @@
   .nav button{
     background:none; border:none; color:var(--text-dim); font-size:0.86rem; font-weight:500;
     padding:8px 14px; border-radius:100px; transition:background .15s, color .15s;
+    cursor:pointer; touch-action:manipulation;
   }
   .nav button:hover{color:var(--text); background:var(--surface-2);}
   .nav button.active{color:var(--gold-bright); background:var(--gold-wash);}
@@ -119,13 +120,6 @@
     pointer-events:auto;
   }
   body.is-admin .admin-bar{display:flex !important;}
-  .admin-bar button[data-nav]{
-    display:inline-flex !important;
-    background:var(--surface-2); border:1px solid var(--border); color:var(--text-dim);
-    border-radius:100px; padding:7px 12px; font-size:0.78rem; font-weight:600;
-    cursor:pointer;
-  }
-  .admin-bar button[data-nav].active{color:var(--gold-bright); border-color:var(--gold-dim); background:var(--gold-wash);}
   .admin-filter-item{
     display:flex; flex-direction:column; gap:2px;
     font-size:0.62rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint);
@@ -355,6 +349,7 @@
     background:rgba(17,19,25,0.98); border-bottom:1px solid var(--border-soft);
     position:relative; z-index:1;
   }
+  body.is-admin .admin-live-lists[hidden]{display:none !important;}
   .draw-alert{
     position:fixed; inset:0; z-index:95;
     display:flex; align-items:center; justify-content:center;

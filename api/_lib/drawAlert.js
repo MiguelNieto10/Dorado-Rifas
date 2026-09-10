@@ -3,12 +3,18 @@ import { CARD_VALUES, isPaid, pad2 } from "./cardsLogic.js";
 const SITE = "https://dorado-rifas.vercel.app";
 
 export function alertMessage(boards) {
-  const list = (boards || []).map((v) => "$" + Number(v).toLocaleString("es-CO")).join(", ");
+  const list = (boards || []).map((v) => "$" + Number(v).toLocaleString("es-CO"));
+  const today = list.length ? "Hoy hay verdes en: " + list.join(", ") + "." : "Hoy solo se sortean tableros con números verdes.";
   return [
-    "🏆 *Dorado Rifas*",
-    "En 5 minutos inicia el sorteo.",
-    "Se juega tablero por tablero, empezando por *$2.000*" + (list ? " (hoy: " + list + ")" : "") + ".",
-    "Solo entran números *verdes y pagos*.",
+    "Dorado Rifas",
+    "En 5 minutos empieza el sorteo de hoy.",
+    "",
+    "Orden:",
+    "1. Tablero de $2.000",
+    "2. Luego $5.000, $10.000, $20.000, $50.000 y $100.000, en ese orden.",
+    "",
+    "Solo se sortea un tablero si tiene números en verde (pagos). Si no tiene verdes, se salta al siguiente.",
+    today,
     "Entra a " + SITE,
   ].join("\n");
 }
