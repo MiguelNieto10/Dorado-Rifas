@@ -506,6 +506,13 @@ export function runAuthGate() {
       const next = { ...sessionProfile, joinedWhatsapp: true, registrationComplete: true };
       await setDoc(doc(firestore, "users", sessionUser.uid), next, { merge: true });
       sessionProfile = next;
+      if (next.email) {
+        fetch("/api/enviar-bienvenida", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: next.email, username: next.username }),
+        }).catch(() => {});
+      }
       await finish(sessionUser, sessionProfile);
     });
 
