@@ -30,6 +30,9 @@
         <label>Nombre de usuario
           <input class="input-field" id="authUsername" name="username" autocomplete="username" required minlength="3" placeholder="ej. CamiloR">
         </label>
+        <label id="authFullNameWrap">Nombre completo
+          <input class="input-field" id="authFullName" name="name" autocomplete="name" placeholder="nombre y apellido">
+        </label>
         <label id="authEmailWrap">Correo
           <input class="input-field" id="authEmail" name="email" type="email" autocomplete="email" placeholder="tucorreo@gmail.com">
         </label>
@@ -123,7 +126,7 @@
   <section id="view-lobby" class="view">
     <div class="hero">
       <h1>La suerte, <em>con estilo.</em></h1>
-      <p>Elige un tablero de juego, marca tus números y envía el comprobante a un administrador del grupo. El número queda en verde cuando está asegurado. El premio es el 50% de lo recaudado; siempre hay ganador entre los números verdes y pagos. El sorteo es todos los días a las 9:00 p. m. (cuenta 10, 9… 0).</p>
+      <p>Elige un tablero de juego, marca tus números y envía el comprobante a un administrador del grupo. En el mensaje escribe tu nombre completo, en qué tablero estás jugando y el número o números que elegiste. El número queda en verde cuando está asegurado. El premio es el 50% de lo recaudado; siempre hay ganador entre los números verdes y pagos. El sorteo es todos los días a las 9:00 p. m. (cuenta 10, 9… 0).</p>
       <div class="stat-row">
         <div class="stat"><span class="v mono" id="statActive">—</span><span class="k">Tableros en juego</span></div>
         <div class="stat"><span class="v mono" id="statPot">—</span><span class="k">Premio más alto ahora</span></div>
@@ -133,6 +136,7 @@
     </div>
     <span class="section-label">Elige tu tablero de juego</span>
     <div class="cards-grid" id="cardsGrid"></div>
+    <div id="adminLiveLists" class="admin-live-lists"></div>
   </section>
 
   <!-- ===================== VISTA: CARTÓN ===================== -->
@@ -230,7 +234,8 @@
     y siempre hay un ganador entre los números verdes y pagos. El sorteo es todos los días
     a las 9:00 p. m. (cuenta 10 a 0, solo quienes tienen número pago en ese tablero).
     Después de 10 segundos el tablero se abre de nuevo.
-    Envía el comprobante a un administrador del grupo para asegurar tu número;
+    Envía el comprobante a un administrador del grupo para asegurar tu número
+    e indica tu nombre completo, el tablero y el número o números que elegiste;
     sin comprobante se libera a los 15 minutos.
   </p>
 </footer>
@@ -240,14 +245,14 @@
   <div class="modal" id="modalPayment" hidden>
     <h3>Confirmar pago</h3>
     <p class="sub" id="payDesc">—</p>
-    <p class="sub" style="margin-top:8px;">Envía el comprobante de pago a un administrador del grupo para asegurar tu número y poder reclamar el premio. Sin comprobante, el número se libera a los 15 minutos. Queda asegurado cuando finaliza y aparece en verde.</p>
+    <p class="sub" style="margin-top:8px;">Envía el comprobante de pago a un administrador del grupo. En el mismo mensaje escribe tu <strong>nombre completo</strong>, <strong>en qué tablero estás jugando</strong> y el <strong>número o números</strong> que elegiste. Sin comprobante, el número se libera a los 15 minutos. Queda asegurado cuando aparece en verde.</p>
     <div class="modal-row"><span class="k">Números</span><span class="v" id="payNums">—</span></div>
     <div class="modal-row"><span class="k">Total</span><span class="v" id="payTotal">$0</span></div>
     <div class="nequi-box">
       <p class="nequi-box-k">Cuenta Nequi de Dorado</p>
       <p class="nequi-box-num" id="nequiAccountDisplay">3150505240</p>
       <button class="btn btn-outline btn-sm" type="button" id="copyNequiBtn" data-copy-nequi="3150505240">Copiar número</button>
-      <p class="nequi-box-hint">Abre Nequi, envía el total a este número y después pulsa Pagar con Nequi. Tus números quedan 15 minutos reservados. Manda el comprobante a un administrador del grupo para que pasen a verde.</p>
+      <p class="nequi-box-hint">Abre Nequi, envía el total a este número y después pulsa Pagar con Nequi. Tus números quedan 15 minutos reservados. Manda el comprobante a un administrador e indica nombre completo, tablero y números para que pasen a verde.</p>
     </div>
     <button class="pay-option" id="payNequi" type="button">
       <span><b>Pagar con Nequi</b><span>Reservar y pagar a 3150505240</span></span>
@@ -267,7 +272,7 @@
       <p class="nequi-box-k">Cuenta oficial Nequi</p>
       <p class="nequi-box-num">3150505240</p>
       <button class="btn btn-gold btn-sm" type="button" id="copyNequiBtn2" data-copy-nequi="3150505240">Copiar 3150505240</button>
-      <p class="nequi-box-hint">1. Abre Nequi en tu celular.<br>2. Envía exactamente ese valor a <strong>3150505240</strong>.<br>3. En el grupo de WhatsApp, manda el comprobante a un administrador.<br>4. Cuando confirmen, tu número pasa a verde y queda asegurado. Si no llega el comprobante, a los 15 minutos se libera.</p>
+      <p class="nequi-box-hint">1. Abre Nequi en tu celular.<br>2. Envía exactamente ese valor a <strong>3150505240</strong>.<br>3. En el grupo de WhatsApp, manda el comprobante a un administrador e informa: <strong>nombre completo</strong>, <strong>tablero</strong> y <strong>número(s)</strong> que elegiste.<br>4. Cuando confirmen, tu número pasa a verde y queda asegurado. Si no llega el comprobante, a los 15 minutos se libera.</p>
     </div>
     <div class="modal-actions">
       <button class="btn btn-gold btn-block" id="nequiPayDone" type="button">Entendido, voy a pagar</button>
@@ -304,7 +309,7 @@
     <div class="how-list">
       <p><span class="hi">01</span>Elige un tablero de juego según el valor que quieras jugar.</p>
       <p><span class="hi">02</span>Selecciona uno o varios números del 00 al 99 y paga.</p>
-      <p><span class="hi">03</span>Envía el comprobante a un administrador del grupo. Sin comprobante el número se libera a los 15 minutos. Cuando finaliza, queda en verde y queda asegurado.</p>
+      <p><span class="hi">03</span>Envía el comprobante a un administrador del grupo e informa tu nombre completo, en qué tablero estás jugando y el número o números que elegiste. Sin comprobante el número se libera a los 15 minutos. Cuando confirman, queda en verde y queda asegurado.</p>
       <p><span class="hi">04</span>Siempre hay ganador: se juega el premio sobre los números verdes y pagos. El premio es el 50% de lo recaudado.</p>
       <p><span class="hi">05</span>El sorteo es todos los días, lunes a domingo, a las 9:00 p. m. Quienes tienen número pago en ese tablero ven la cuenta 10 a 0 y al ganador (número, nombre, ciudad y premio del 50%).</p>
       <p><span class="hi">06</span>A los 10 segundos el tablero se abre de nuevo. Si ganas, el administrador te envía el premio a tu Nequi.</p>

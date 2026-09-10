@@ -215,6 +215,7 @@ export function runAuthGate() {
         uid: user.uid,
         username: profile.username || user.displayName || "Jugador",
         phone: profile.phone || "",
+        fullName: profile.fullName || profile.username || user.displayName || "",
         isAdmin: isAdminAccount(profile, profile.username || user.displayName),
       });
     }
@@ -369,6 +370,8 @@ export function runAuthGate() {
       const isRegister = mode === "register";
       const emailWrap = document.getElementById("authEmailWrap");
       if (emailWrap) emailWrap.hidden = !isRegister;
+      const nameWrap = document.getElementById("authFullNameWrap");
+      if (nameWrap) nameWrap.hidden = !isRegister;
       document.getElementById("authPhoneWrap").hidden = !isRegister;
       const forgot = document.getElementById("authForgotWrap");
       if (forgot) forgot.hidden = mode !== "login";
@@ -390,6 +393,7 @@ export function runAuthGate() {
       const username = document.getElementById("authUsername").value.trim();
       const password = document.getElementById("authPassword").value;
       const emailInput = (document.getElementById("authEmail") && document.getElementById("authEmail").value.trim()) || "";
+      const fullName = (document.getElementById("authFullName") && document.getElementById("authFullName").value.trim()) || "";
       const phone = digitsPhone(document.getElementById("authPhone").value);
       const remember = document.getElementById("authRemember").checked;
       const mode = authMode();
@@ -407,6 +411,10 @@ export function runAuthGate() {
       }
       if (adminAttempt && !isAdminAccount({}, username)) {
         setAuthError("Ese usuario no está en la lista de administrador.");
+        return;
+      }
+      if (isRegister && fullName.length < 5) {
+        setAuthError("Escribe tu nombre completo (nombre y apellido).");
         return;
       }
       if (isRegister && !isValidEmail(emailInput)) {
@@ -444,6 +452,7 @@ export function runAuthGate() {
           await setDoc(doc(firestore, "emails", emailDocId(email)), { uid: cred.user.uid, slug });
           await setDoc(doc(firestore, "users", cred.user.uid), {
             username: username.trim(),
+            fullName,
             email,
             phone,
             joinedWhatsapp: false,
@@ -451,7 +460,7 @@ export function runAuthGate() {
             createdAt: Date.now(),
           });
           sessionUser = cred.user;
-          sessionProfile = { username: username.trim(), email, phone, joinedWhatsapp: false, registrationComplete: false };
+          sessionProfile = { username: username.trim(), fullName, email, phone, joinedWhatsapp: false, registrationComplete: false };
           if (document.getElementById("authUseBio").checked) {
             try {
               await enrollPasskey(firestore, cred.user.uid, username.trim());

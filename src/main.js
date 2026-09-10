@@ -141,7 +141,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     });
   }
 
-  const BOARD_LIVE_GEN = 3;
+  const BOARD_LIVE_GEN = 4;
 
   // Crea un tablero en blanco: sin números vendidos.
   function freshCard(value){
@@ -290,6 +290,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         }
         renderLobbyCard(value);
         if(openCardValue === value) renderCardDetail(value);
+        renderAdminLiveLists();
         // Nota: ya no filtramos aquí por "!drawRunning[value]" — esa
         // decisión ahora vive DENTRO de runDrawAnimation (ver su propio
         // comentario), que revisa si el aviso de sorteo está realmente
@@ -319,6 +320,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     if(usingDb){ db.doc('cards/'+value).set(card).catch(()=>{}); }
     renderLobbyCard(value);
     if(openCardValue === value) renderCardDetail(value);
+    renderAdminLiveLists();
   }
 
   function addActivity(kind, desc, amount){
@@ -352,11 +354,87 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     selectedNumbers.clear();
   }
 
+  function confirmHold(value, num){
+    const card = cardsCache[value];
+    const slot = card && card.numbers && card.numbers[num];
+    if(!isAdmin || !slot || !isHeld(slot)) return false;
+    slot.pending = false;
+    slot.confirmed = true;
+    delete slot.heldUntil;
+    recountSold(card);
+    saveCard(value);
+    toast('Número ' + num + ' del tablero ' + fmt(value) + ' asegurado en verde.');
+    return true;
+  }
+
+  function escapeAdmin(s){
+    return String(s ?? '')
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+
+  function renderAdminLiveLists(){
+    const root = document.getElementById('adminLiveLists');
+    if(!root) return;
+    if(!isAdmin){
+      root.innerHTML = '';
+      return;
+    }
+    const openIds = new Set(Array.from(root.querySelectorAll('details[open]')).map((d)=>d.dataset.board));
+    const blocks = CARD_VALUES.map((value)=>{
+      const card = cardsCache[value] || emptyLiveBoard(value, []);
+      const rows = [];
+      for(let i=0;i<100;i++){
+        const n = pad2(i);
+        const slot = card.numbers && card.numbers[n];
+        if(!slot) continue;
+        const held = isHeld(slot);
+        const paid = isPaid(slot);
+        const estado = held ? 'Reservado 15 min' : (paid ? 'Verde · asegurado' : 'Pendiente');
+        const cls = held ? 'held' : (paid ? 'green' : '');
+        const who = slot.fullName || slot.owner || '—';
+        const user = slot.owner && slot.owner !== who ? ' · @' + slot.owner : '';
+        const phone = slot.phone || '—';
+        const btn = held
+          ? '<button class="btn btn-gold btn-sm" type="button" data-confirm-hold="' + value + '" data-confirm-num="' + n + '">Pasar a verde</button>'
+          : '';
+        rows.push(
+          '<tr class="' + cls + '">' +
+            '<td class="mono">' + n + '</td>' +
+            '<td>' + escapeAdmin(who) + escapeAdmin(user) + '</td>' +
+            '<td class="mono">' + escapeAdmin(phone) + '</td>' +
+            '<td>' + estado + '</td>' +
+            '<td>' + btn + '</td>' +
+          '</tr>'
+        );
+      }
+      const heldCount = Object.keys(card.numbers||{}).filter((n)=>isHeld(card.numbers[n])).length;
+      const greenCount = paidNumbers(card).length;
+      const body = rows.length
+        ? '<div class="admin-live-table-wrap"><table class="admin-live-table"><thead><tr><th>Nº</th><th>Nombre</th><th>Celular</th><th>Estado</th><th></th></tr></thead><tbody>' + rows.join('') + '</tbody></table></div>'
+        : '<p class="admin-live-empty">Nadie ha tomado números en este tablero.</p>';
+      const openAttr = openIds.has(String(value)) ? ' open' : '';
+      return (
+        '<details class="admin-live-board" data-board="' + value + '"' + openAttr + '>' +
+          '<summary>Tablero ' + fmt(value) + ' <span>Reservados ' + heldCount + ' · Verdes ' + greenCount + '</span></summary>' +
+          body +
+        '</details>'
+      );
+    }).join('');
+    root.innerHTML =
+      '<span class="section-label">Números en vivo (para cruzar con el comprobante)</span>' +
+      '<p class="admin-live-lead">Abre el tablero que te escribió el jugador. Si coincide nombre, tablero y números, pulsa Pasar a verde.</p>' +
+      blocks;
+  }
+
   // ---------- 6. RENDER: LOBBY ----------
   function renderAll(){
     renderWalletChip();
     CARD_VALUES.forEach(renderLobbyCard);
     renderLobbyStats();
+    renderAdminLiveLists();
     if(openCardValue) renderCardDetail(openCardValue);
     if(currentView === 'wallet') renderWalletView();
     if(currentView === 'historial') renderHistorialView();
@@ -505,6 +583,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       card.numbers[n] = {
         owner: PROFILE.name,
         city: PROFILE.city,
+        phone: PROFILE.phone || '',
+        fullName: PROFILE.fullName || PROFILE.name,
         isUser: true,
         ownerUid: currentUid || null,
         boughtAt: Date.now(),
@@ -1071,18 +1151,15 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       const openBtn = t.closest('[data-open]');
       if(openBtn){ openCard(parseInt(openBtn.dataset.open, 10)); return; }
 
+      const holdBtn = t.closest('[data-confirm-hold]');
+      if(holdBtn && isAdmin){
+        confirmHold(parseInt(holdBtn.dataset.confirmHold, 10), holdBtn.dataset.confirmNum);
+        return;
+      }
+
       const numCell = t.closest('.num-cell[data-num]');
       if(numCell && numCell.classList.contains('held') && isAdmin){
-        const card = cardsCache[openCardValue];
-        const slot = card && card.numbers[numCell.dataset.num];
-        if(slot && isHeld(slot)){
-          slot.pending = false;
-          slot.confirmed = true;
-          delete slot.heldUntil;
-          recountSold(card);
-          saveCard(openCardValue);
-          toast('Número ' + numCell.dataset.num + ' asegurado en verde.');
-        }
+        confirmHold(openCardValue, numCell.dataset.num);
         return;
       }
       if(numCell && numCell.classList.contains('available')){ toggleNumber(numCell.dataset.num); return; }
@@ -1180,6 +1257,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   // se pintan los cartones y se conecta Firestore.
   runAuthGate().then((session)=>{
     PROFILE.name = session.username || 'Jugador';
+    PROFILE.phone = session.phone || '';
+    PROFILE.fullName = session.fullName || session.username || '';
     currentUid = session.uid;
     isAdmin = !!session.isAdmin && isAdminEntry();
     document.body.classList.toggle('is-admin', isAdmin);
