@@ -46,7 +46,18 @@
         </label>
         <button class="btn btn-gold btn-block" type="submit" id="authSubmit">Crear cuenta</button>
       </form>
+      <p class="auth-switch" id="authForgotWrap"><button type="button" id="authForgotBtn">Olvidé mi clave</button></p>
       <p class="auth-switch" id="authGoPlay" hidden><a href="/">Soy jugador — entrar a Dorado</a></p>
+    </div>
+
+    <div data-auth-step="reset" hidden>
+      <h2>Olvidé mi clave</h2>
+      <p class="auth-lead">Escribe tu nombre de usuario. Un administrador confirma el pedido y te envía una clave nueva por WhatsApp. Después entra con “Ya tengo cuenta”.</p>
+      <label>Nombre de usuario
+        <input class="input-field" id="authResetUser" name="reset-username" autocomplete="username" minlength="3" placeholder="el usuario con el que te registraste">
+      </label>
+      <button class="btn btn-gold btn-block" type="button" id="authResetSend" style="margin-top:16px;">Pedir clave nueva</button>
+      <button class="btn btn-ghost btn-block" type="button" id="authResetBack" style="margin-top:10px;">Volver</button>
     </div>
 
     <div data-auth-step="bio" hidden>
@@ -208,8 +219,9 @@
   <section id="view-admin-users" class="view" hidden>
     <div class="hero" style="padding-top:24px; padding-bottom:8px;">
       <h1 style="font-size:clamp(1.6rem,3.4vw,2.2rem);">Usuarios</h1>
-      <p>Lista enumerada de cuentas. El indicador verde aparece si esa persona tiene números asegurados (en verde) en un tablero abierto. Filtra por día, mes o año arriba. <span class="admin-count-line">Cuentas: <span class="mono" id="adminUserCount">0</span></span></p>
+      <p>Pedidos de clave nueva aparecen arriba. Confírmalos y envía la clave por WhatsApp. Lista enumerada de cuentas. El indicador verde aparece si esa persona tiene números asegurados (en verde) en un tablero abierto. Filtra por día, mes o año arriba. <span class="admin-count-line">Cuentas: <span class="mono" id="adminUserCount">0</span></span></p>
     </div>
+    <div id="adminResetList"></div>
     <div id="adminUserList"></div>
   </section>
 

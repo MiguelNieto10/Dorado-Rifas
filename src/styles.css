@@ -155,6 +155,15 @@
   .admin-user-grid .k{display:block; font-size:0.62rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-faint);}
   .admin-user-grid .v{font-family:var(--font-mono); font-weight:600; color:var(--gold-bright);}
   .admin-win-line{margin-top:10px; font-size:0.78rem; color:var(--text-dim);}
+  .admin-reset{
+    border-color:var(--gold-dim);
+    background:linear-gradient(165deg, var(--gold-wash), var(--surface));
+  }
+  .admin-reset-actions{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
+  .admin-temp-key{
+    font-family:var(--font-mono); font-size:1.15rem; font-weight:700; color:var(--gold-bright);
+    margin:10px 0 8px; letter-spacing:0.04em;
+  }
   .admin-stats{margin:8px 0 22px;}
   .admin-open{
     background:var(--surface); border:1px solid var(--border-soft); border-radius:var(--radius-m);
@@ -251,6 +260,7 @@
   .btn{
     border-radius:100px; padding:11px 20px; font-weight:600; font-size:0.88rem;
     border:1px solid transparent; text-align:center; transition:filter .15s, transform .1s, background .15s;
+    text-decoration:none; display:inline-block;
   }
   .btn:active{transform:scale(0.98);}
   .btn-gold{background:linear-gradient(180deg, var(--gold-bright), var(--gold)); color:#1a1405;}
@@ -540,7 +550,11 @@
   .auth-tabs button.active{color:var(--gold-bright); background:var(--gold-wash); border-color:var(--gold-dim);}
   body.admin-entry .auth-tabs{display:none !important;}
   .auth-switch{margin-top:16px; text-align:center; font-size:0.82rem;}
-  .auth-switch a{color:var(--gold-bright);}
+  .auth-switch a, .auth-switch button{
+    color:var(--gold-bright); background:none; border:none; font:inherit; padding:0;
+    text-decoration:underline; text-underline-offset:3px;
+  }
+  body.admin-entry #authForgotWrap{display:none !important;}
   .auth-card label{display:block; font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); margin-top:10px;}
   .auth-card .input-field{margin:6px 0 0;}
   .auth-check{

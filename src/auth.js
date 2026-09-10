@@ -292,6 +292,8 @@ export function runAuthGate() {
       const mode = authMode();
       const isRegister = mode === "register";
       document.getElementById("authPhoneWrap").hidden = !isRegister;
+      const forgot = document.getElementById("authForgotWrap");
+      if (forgot) forgot.hidden = mode !== "login";
       document.getElementById("authSubmit").textContent =
         mode === "admin" ? "Entrar como administrador" : isRegister ? "Crear cuenta" : "Entrar";
       canUseBiometrics().then((ok) => {
@@ -411,6 +413,55 @@ export function runAuthGate() {
       await setDoc(doc(firestore, "users", sessionUser.uid), next, { merge: true });
       sessionProfile = next;
       await finish(sessionUser, sessionProfile);
+    });
+
+    document.getElementById("authForgotBtn").addEventListener("click", () => {
+      setAuthError("");
+      const from = document.getElementById("authUsername");
+      const to = document.getElementById("authResetUser");
+      if (from && to && from.value) to.value = from.value.trim();
+      showStep("reset");
+    });
+    document.getElementById("authResetBack").addEventListener("click", () => {
+      setAuthError("");
+      showStep("form");
+      setAuthMode("login");
+    });
+    document.getElementById("authResetSend").addEventListener("click", async () => {
+      setAuthError("");
+      const username = document.getElementById("authResetUser").value.trim();
+      const slug = slugFromUsername(username);
+      if (slug.length < 3) {
+        setAuthError("Escribe el nombre de usuario de tu cuenta.");
+        return;
+      }
+      try {
+        const taken = await getDoc(doc(firestore, "usernames", slug));
+        if (!taken.exists()) {
+          setAuthError("No encontramos esa cuenta. Revisa el nombre de usuario.");
+          return;
+        }
+        const uid = taken.data().uid;
+        const profileSnap = uid ? await getDoc(doc(firestore, "users", uid)) : null;
+        const profile = profileSnap && profileSnap.exists() ? profileSnap.data() : {};
+        await setDoc(doc(firestore, "passwordResets", slug), {
+          uid,
+          username: profile.username || username,
+          phone: profile.phone || "",
+          status: "pending",
+          createdAt: Date.now(),
+        });
+        setAuthError("");
+        const lead = document.querySelector("[data-auth-step='reset'] .auth-lead");
+        if (lead) {
+          lead.textContent =
+            "Pedido enviado. Un administrador lo confirma y te escribe por WhatsApp con la clave nueva. Cuando te llegue, vuelve y entra con “Ya tengo cuenta”.";
+        }
+        document.getElementById("authResetSend").hidden = true;
+        document.getElementById("authResetUser").disabled = true;
+      } catch {
+        setAuthError("No se pudo enviar el pedido. Intenta de nuevo.");
+      }
     });
 
     if (isAdminEntry()) {

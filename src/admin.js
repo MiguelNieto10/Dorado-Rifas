@@ -2,7 +2,8 @@
  * Paneles solo para el administrador.
  * No cambia cómo juegan los demás: solo lee usuarios, compras y sorteos.
  */
-import { getFirestore, collection, getDocs } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import { getFirestore, collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { getFirebaseApp } from "./db.js";
 import { slugFromUsername, WHATSAPP_GROUP_LINK } from "./auth.js";
 import { isWithinVideoRetention, pruneExpiredDrawArchives } from "./drawStore.js";
@@ -87,15 +88,16 @@ function activeCardsForUser(cardsCache, uid, username) {
 export async function loadAdminBundle(cardsCache) {
   const app = getFirebaseApp();
   if (!app) {
-    return { users: [], plays: [], draws: [], cardsCache: cardsCache || {} };
+    return { users: [], plays: [], draws: [], resets: [], cardsCache: cardsCache || {} };
   }
   const firestore = getFirestore(app);
-  const [users, plays, draws] = await Promise.all([
+  const [users, plays, draws, resets] = await Promise.all([
     readCollection(firestore, "users"),
     readCollection(firestore, "plays"),
     readCollection(firestore, "draws"),
+    readCollection(firestore, "passwordResets"),
   ]);
-  return { users, plays, draws, cardsCache: cardsCache || {} };
+  return { users, plays, draws, resets, cardsCache: cardsCache || {} };
 }
 
 function summarizeUser(user, uid, bundle, mode, dateStr) {
@@ -128,6 +130,44 @@ function summarizeUser(user, uid, bundle, mode, dateStr) {
     active: activeValues.length > 0,
     activeValues,
   };
+}
+
+function waDigits(phone) {
+  const d = String(phone || "").replace(/\D/g, "");
+  if (!d) return "";
+  if (d.startsWith("57") && d.length >= 12) return d;
+  if (d.length === 10) return "57" + d;
+  return d;
+}
+
+function renderResets(listEl, resets) {
+  const pending = (resets || []).filter((r) => (r.status || "pending") === "pending");
+  if (!pending.length) {
+    listEl.innerHTML = "";
+    return;
+  }
+  listEl.innerHTML =
+    '<p class="section-label" style="margin-bottom:10px;">Pedidos de clave</p>' +
+    pending
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+      .map((r) => {
+        const slug = escapeHtml(r.id || slugFromUsername(r.username));
+        const when = r.createdAt ? new Date(r.createdAt).toLocaleString("es-CO") : "—";
+        return (
+          '<article class="admin-user admin-reset" data-reset-slug="' + slug + '">' +
+            '<div class="admin-user-top">' +
+              '<div><div class="admin-user-name">' + escapeHtml(r.username || r.id) + "</div>" +
+              '<div class="admin-user-meta">Celular ' + escapeHtml(r.phone || "—") + " · " + escapeHtml(when) + "</div></div>" +
+            "</div>" +
+            '<p class="admin-win-line">Confirma solo si reconoces a esta persona. Se genera una clave nueva y la envías por WhatsApp.</p>' +
+            '<div class="admin-reset-actions">' +
+              '<button class="btn btn-gold btn-sm" type="button" data-approve-reset="' + slug + '">Confirmar y generar clave</button>' +
+              '<button class="btn btn-outline btn-sm" type="button" data-reject-reset="' + slug + '">Rechazar</button>' +
+            "</div>" +
+          "</article>"
+        );
+      })
+      .join("");
 }
 
 function renderUsers(listEl, rows) {
@@ -302,14 +342,67 @@ function bogotaDateFromTs(ts) {
 
 let cachedBundle = null;
 
+async function rejectReset(slug, getCardsCache) {
+  const app = getFirebaseApp();
+  if (!app || !slug) return;
+  const firestore = getFirestore(app);
+  await setDoc(doc(firestore, "passwordResets", slug), { status: "rejected", resolvedAt: Date.now() }, { merge: true });
+  await refreshAdminViews(getCardsCache());
+}
+
+async function approveReset(slug, getCardsCache) {
+  const app = getFirebaseApp();
+  if (!app || !slug) return;
+  const user = getAuth(app).currentUser;
+  if (!user) return;
+  const token = await user.getIdToken();
+  const res = await fetch("/api/reset-clave", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + token,
+    },
+    body: JSON.stringify({ slug }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    window.alert(data.error || "No se pudo confirmar el pedido.");
+    return;
+  }
+  const card = document.querySelector('[data-reset-slug="' + CSS.escape(slug) + '"]');
+  if (!card) {
+    await refreshAdminViews(getCardsCache());
+    return;
+  }
+  const phone = waDigits(data.phone);
+  const msg = encodeURIComponent(
+    "Hola, soy el administrador de Dorado. Tu usuario " +
+      data.username +
+      " ya tiene clave nueva: " +
+      data.password +
+      " Entra en https://dorado-rifas.vercel.app con Ya tengo cuenta.",
+  );
+  const waHref = phone ? "https://wa.me/" + phone + "?text=" + msg : WHATSAPP_GROUP_LINK;
+  card.innerHTML =
+    '<div class="admin-user-name">' + escapeHtml(data.username) + "</div>" +
+    '<p class="admin-win-line">Clave nueva (cópiala y envíala ahora; no se vuelve a mostrar):</p>' +
+    '<p class="admin-temp-key">' + escapeHtml(data.password) + "</p>" +
+    '<div class="admin-reset-actions">' +
+      '<button class="btn btn-outline btn-sm" type="button" data-copy-reset="' + escapeHtml(data.password) + '">Copiar clave</button>' +
+      '<a class="btn btn-gold btn-sm" data-wa-reset href="' + waHref + '" target="_blank" rel="noopener">Enviar por WhatsApp</a>' +
+    "</div>";
+}
+
 export async function refreshAdminViews(cardsCache) {
   const usersEl = document.getElementById("adminUserList");
+  const resetEl = document.getElementById("adminResetList");
   const cajaEl = document.getElementById("adminCajaBody");
   const videosEl = document.getElementById("adminVideosBody");
   const countEl = document.getElementById("adminUserCount");
   if (!usersEl || !cajaEl || !videosEl) return;
 
   usersEl.innerHTML = '<div class="empty-note">Cargando…</div>';
+  if (resetEl) resetEl.innerHTML = "";
   cajaEl.innerHTML = '<div class="empty-note">Cargando…</div>';
   videosEl.innerHTML = '<div class="empty-note">Cargando…</div>';
 
@@ -323,6 +416,7 @@ export async function refreshAdminViews(cardsCache) {
     .sort((a, b) => Number(b.active) - Number(a.active) || a.username.localeCompare(b.username, "es"));
 
   if (countEl) countEl.textContent = String(rows.length);
+  if (resetEl) renderResets(resetEl, cachedBundle.resets || []);
   renderUsers(usersEl, rows);
   renderCaja(cajaEl, cachedBundle, mode, dateStr);
   renderVideos(videosEl, cachedBundle, mode, dateStr);
@@ -339,6 +433,29 @@ export function bindAdminFilters(getCardsCache) {
   const reload = document.getElementById("adminReload");
   if (reload) {
     reload.addEventListener("click", () => refreshAdminViews(getCardsCache()));
+  }
+  const resetEl = document.getElementById("adminResetList");
+  if (resetEl) {
+    resetEl.addEventListener("click", (e) => {
+      const approve = e.target.closest("[data-approve-reset]");
+      const reject = e.target.closest("[data-reject-reset]");
+      const copy = e.target.closest("[data-copy-reset]");
+      const wa = e.target.closest("[data-wa-reset]");
+      if (approve) {
+        approveReset(approve.dataset.approveReset, getCardsCache);
+        return;
+      }
+      if (reject) {
+        rejectReset(reject.dataset.rejectReset, getCardsCache);
+        return;
+      }
+      if (copy && copy.dataset.copyReset) {
+        navigator.clipboard.writeText(copy.dataset.copyReset).catch(() => {});
+        copy.textContent = "Copiada";
+        return;
+      }
+      if (wa && wa.href) return;
+    });
   }
   const videosEl = document.getElementById("adminVideosBody");
   if (videosEl) {

@@ -1,9 +1,8 @@
 import { cert, getApps, initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
-// Igual que en zona-camisetas / URO: el servidor habla con Firebase
-// usando credenciales que NUNCA se mandan al navegador.
-export function getFirestoreDb() {
+function readServiceAccount() {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
@@ -16,6 +15,11 @@ export function getFirestoreDb() {
     privateKey = privateKey.replace(/\\n/g, "\n");
   }
 
+  return { projectId, clientEmail, privateKey };
+}
+
+export function getAdminApp() {
+  const { projectId, clientEmail, privateKey } = readServiceAccount();
   if (!projectId || !clientEmail || !privateKey) {
     throw new Error("Falta configurar Firebase en el servidor.");
   }
@@ -26,5 +30,34 @@ export function getFirestoreDb() {
     });
   }
 
+  return getApps()[0];
+}
+
+export function getFirestoreDb() {
+  getAdminApp();
   return getFirestore();
+}
+
+export function getAuthAdmin() {
+  getAdminApp();
+  return getAuth();
+}
+
+export function slugFromUsername(name) {
+  return String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "")
+    .replace(/[^a-z0-9._]/g, "");
+}
+
+export function isAdminUsername(profile, username) {
+  if (profile && profile.role === "admin") return true;
+  const raw = process.env.VITE_ADMIN_USERNAMES || "";
+  const slugs = String(raw + ",Miguel_NP_10")
+    .split(",")
+    .map((s) => slugFromUsername(s))
+    .filter(Boolean);
+  const slug = slugFromUsername(username || (profile && profile.username) || "");
+  return !!slug && slugs.includes(slug);
 }
