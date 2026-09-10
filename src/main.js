@@ -1,8 +1,7 @@
-import { connectFirestore, getFirebaseApp } from "./db.js";
-import { getAuth } from "firebase/auth";
-import { runAuthGate, signOutSession, isAdminEntry } from "./auth.js";
+import { connectFirestore } from "./db.js";
+import { runAuthGate, signOutSession, isAdminEntry, WHATSAPP_GROUP_LINK } from "./auth.js";
 import { createDrawRecorder } from "./drawRecord.js";
-import { archiveDrawVideo, bogotaDateKey } from "./drawStore.js";
+import { bogotaDateKey } from "./drawStore.js";
 import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
 /* ================================================================
@@ -152,6 +151,39 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       return paidNumbers(card).some((n)=> slotBelongsToMe(card.numbers[n]));
     });
   }
+  const GROUP_ALERT_TEXT = '🏆 *Dorado Rifas*\nEn 5 minutos inicia el sorteo.\nSe juega tablero por tablero, empezando por *$2.000*.\nSolo entran números *verdes y pagos*.\nEntra a https://dorado-rifas.vercel.app';
+  function copyText(text){
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        return navigator.clipboard.writeText(String(text || ''));
+      }
+    }catch(e){ /* el celular a veces bloquea copiar sin un clic */ }
+    return Promise.resolve();
+  }
+  function openWhatsAppGroup(){
+    window.open(WHATSAPP_GROUP_LINK, '_blank', 'noopener');
+  }
+  async function sendTextToGroup(text){
+    await copyText(text);
+    openWhatsAppGroup();
+    toast('Mensaje copiado. Pégalo en el grupo de Dorado.');
+  }
+  async function sendDrawToGroup(){
+    try{
+      const payload = { title:'Dorado Rifas', text: lastWinnerMsg };
+      if(lastDrawFile && navigator.canShare && navigator.canShare({ files:[lastDrawFile] })){
+        payload.files = [lastDrawFile];
+      }
+      if(navigator.share){
+        await navigator.share(payload);
+        toast('Elige el grupo de Dorado y envía.');
+        return;
+      }
+    }catch(e){ /* canceló o el celular no adjunta video */ }
+    await copyText(lastWinnerMsg);
+    openWhatsAppGroup();
+    toast('Pega el mensaje en el grupo. Si sale el video, adjúntalo en el mismo chat.');
+  }
   function showDrawAlertBanner(text){
     const { date } = bogotaStamp();
     const key = 'dorado.drawAlert.' + date;
@@ -160,6 +192,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     const msg = document.getElementById('drawAlertText');
     if(!box || !msg) return;
     msg.textContent = text || 'En 5 minutos inicia el sorteo. Se juega tablero por tablero, empezando por $2.000, solo con números verdes y pagos.';
+    const groupBtn = document.getElementById('drawAlertGroup');
+    if(groupBtn) groupBtn.hidden = !isAdmin;
     box.hidden = false;
   }
   function hideDrawAlertBanner(){
@@ -169,19 +203,30 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   }
   let drawAlertPosted = false;
   async function kickDrawAlert(){
-    const text = 'En 5 minutos inicia el sorteo. Se juega tablero por tablero, empezando por $2.000. Solo entran números verdes y pagos.';
+    const text = GROUP_ALERT_TEXT.replace(/\*/g, '');
     if(isAdmin || playerHasPaidTonight()) showDrawAlertBanner(text);
-    if(drawAlertPosted || !isAdmin) return;
+    if(drawAlertPosted) return;
     drawAlertPosted = true;
-    try{
-      const app = getFirebaseApp();
-      const user = app && getAuth(app).currentUser;
-      const token = user ? await user.getIdToken() : '';
-      await fetch('/api/aviso-sorteo', {
-        method: 'POST',
-        headers: token ? { Authorization: 'Bearer ' + token } : {}
+    if(usingDb && db){
+      const date = bogotaStamp().date;
+      const uids = [];
+      CARD_VALUES.forEach((value)=>{
+        const card = cardsCache[value];
+        if(!card) return;
+        paidNumbers(card).forEach((n)=>{
+          const slot = card.numbers[n];
+          if(slot && slot.ownerUid) uids.push(slot.ownerUid);
+        });
       });
-    } catch { /* el aviso en pantalla ya se mostró */ }
+      db.doc('notices/draw-' + date).set({
+        sent: true,
+        sentAt: Date.now(),
+        date,
+        text: GROUP_ALERT_TEXT,
+        uids,
+        channel: 'group'
+      }).catch(()=>{});
+    }
   }
   function maybeScheduledDraws(){
     const { hour, minute } = bogotaStamp();
@@ -998,37 +1043,27 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       if(!recorder.start()) recorder = null;
     }
     if(recorder){
-      recorder.winner(clip);
-      const hold = setInterval(()=> recorder.winner(clip), 200);
-      setTimeout(()=>{
-        clearInterval(hold);
-        recorder.stop().then(async (blob)=>{
-          if(!blob){ lastDrawFile = null; return; }
-          const ext = blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
-          lastDrawFile = new File([blob], 'sorteo-dorado-' + card.pendingWinner + '.' + ext, { type: blob.type });
-          try{
-            const saved = await archiveDrawVideo(blob, {
-              drawId: drawKey,
-              cardValue: value,
-              winningNumber: card.pendingWinner,
-              winnerName,
-              winnerCity,
-              winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null,
-              prize,
-              collected: card.drawCollected != null ? card.drawCollected : prize * 2,
-              paidCount,
-              ts: Date.now(),
-              dateKey: bogotaDateKey()
-            });
-            if(saved && saved.file) lastDrawFile = saved.file;
-          }catch(e){
-            console.error('No se pudo guardar el video del sorteo:', e);
-          }
-        }).catch(()=>{ lastDrawFile = null; });
-      }, 2800);
+      try{
+        recorder.winner(clip);
+        const hold = setInterval(()=>{ try{ recorder.winner(clip); }catch(e){} }, 200);
+        setTimeout(()=>{
+          clearInterval(hold);
+          recorder.stop().then((blob)=>{
+            if(!blob){ lastDrawFile = null; return; }
+            const ext = blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+            lastDrawFile = new File([blob], 'sorteo-dorado-' + card.pendingWinner + '.' + ext, { type: blob.type });
+          }).catch(()=>{ lastDrawFile = null; });
+        }, 2800);
+      }catch(e){
+        lastDrawFile = null;
+      }
     }
 
     const overlay = document.getElementById('drawOverlay');
+    if(!overlay){
+      scheduleRevealClose(card);
+      return;
+    }
     overlay.hidden = false;
     overlay.dataset.cardValue = String(value);
     overlay.classList.toggle('is-win', wonByUser);
@@ -1036,26 +1071,29 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     const stage = document.getElementById('drawStage');
     const shareRow = isAdmin
       ? ('<div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:2px;">' +
-          '<button class="btn btn-gold btn-sm" id="shareWaDrawBtn" type="button">Enviar sorteo al grupo</button>' +
+          '<button class="btn btn-gold btn-sm" id="shareWaDrawBtn" type="button">Enviar al grupo de WhatsApp</button>' +
           '<button class="btn btn-outline btn-sm" id="copyWinnerMsgBtn" type="button">Copiar mensaje</button>' +
         '</div>')
       : '';
-    stage.innerHTML =
-      '<div class="reveal-card' + (wonByUser ? ' won' : '') + '" id="revealCard">' +
-        (wonByUser ? '<div class="reveal-congrats">¡Ganaste!</div>' : '<div class="reveal-congrats">Tenemos ganador</div>') +
-        '<div class="reveal-kicker">Tablero de juego ' + fmt(value) + '</div>' +
-        '<div class="reveal-num">' + card.pendingWinner + '</div>' +
-        '<div class="reveal-winner">' + winnerName + '</div>' +
-        '<div class="reveal-city">' + winnerCity + '</div>' +
-        '<div class="reveal-prize">' + fmt(prize) + '</div>' +
-        '<p class="draw-msg reveal-meta">Premio: 50% de lo recaudado · ' + paidCount + ' números pagos<br>' + when + '</p>' +
-        (wonByUser
-          ? '<p class="draw-msg" style="margin-top:10px;">El administrador te envía el premio a tu Nequi.</p>'
-          : '<p class="draw-msg" style="margin-top:10px;">El tablero se abre de nuevo con los números disponibles.</p>') +
-      '</div>' +
-      shareRow;
+    if(stage){
+      stage.innerHTML =
+        '<div class="reveal-card' + (wonByUser ? ' won' : '') + '" id="revealCard">' +
+          (wonByUser ? '<div class="reveal-congrats">¡Ganaste!</div>' : '<div class="reveal-congrats">Tenemos ganador</div>') +
+          '<div class="reveal-kicker">Tablero de juego ' + fmt(value) + '</div>' +
+          '<div class="reveal-num">' + card.pendingWinner + '</div>' +
+          '<div class="reveal-winner">' + winnerName + '</div>' +
+          '<div class="reveal-city">' + winnerCity + '</div>' +
+          '<div class="reveal-prize">' + fmt(prize) + '</div>' +
+          '<p class="draw-msg reveal-meta">Premio: 50% de lo recaudado · ' + paidCount + ' números pagos<br>' + when + '</p>' +
+          (wonByUser
+            ? '<p class="draw-msg" style="margin-top:10px;">El administrador te envía el premio a tu Nequi.</p>'
+            : '<p class="draw-msg" style="margin-top:10px;">El tablero se abre de nuevo con los números disponibles.</p>') +
+        '</div>' +
+        shareRow;
+    }
 
-    spawnConfetti(overlay, 140);
+    try{ spawnConfetti(overlay, 180); }catch(e){ console.error(e); }
+    if(isAdmin){ copyText(lastWinnerMsg).catch(()=>{}); }
     scheduleRevealClose(card);
   }
 
@@ -1114,8 +1152,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       container.appendChild(layer);
     }
     layer.innerHTML = '';
-    const colors = ['#0a0a0a','#111111','#1a1a1a','#2a2a2a','#e8c877','#c9a24b','#f4e4b0','#8a713a'];
-    const n = count || 120;
+    const colors = ['#0a0a0a','#111111','#1a1a1a','#e8c877','#c9a24b','#f4e4b0','#8a713a','#e8c877'];
+    const n = count || 180;
     for(let i=0;i<n;i++){
       const p = document.createElement('div');
       const round = Math.random() > 0.5;
@@ -1275,10 +1313,9 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         reloadBoardsFromDb();
         return;
       }
-      if(t.closest('#adminWarnDraw')){
-        drawAlertPosted = false;
-        kickDrawAlert();
-        toast('Aviso de sorteo enviado a quienes tienen números verdes.');
+      if(t.closest('#adminWarnDraw') || t.closest('#drawAlertGroup')){
+        sendTextToGroup(GROUP_ALERT_TEXT);
+        showDrawAlertBanner(GROUP_ALERT_TEXT.replace(/\*/g, ''));
         return;
       }
       if(t.closest('#drawAlertOk')){
@@ -1349,22 +1386,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       if(t.closest('#withdrawConfirm')){ doWithdraw(parseInt(document.getElementById('withdrawInput').value, 10)); return; }
 
       if(t.closest('#shareWaDrawBtn')){
-        const send = async function(){
-          try{
-            const payload = { title:'Dorado Rifas', text: lastWinnerMsg };
-            if(lastDrawFile && navigator.canShare && navigator.canShare({ files:[lastDrawFile] })){
-              payload.files = [lastDrawFile];
-            }
-            if(navigator.share){
-              await navigator.share(payload);
-              return;
-            }
-          }catch(e){ /* el usuario canceló o el celular no pudo adjuntar el video */ }
-          try{ navigator.clipboard.writeText(lastWinnerMsg); }catch(e2){}
-          window.open('https://wa.me/?text=' + encodeURIComponent(lastWinnerMsg), '_blank', 'noopener');
-          toast('Elige el grupo de Dorado y envía. Si no salió el video, pega el mensaje.');
-        };
-        send();
+        sendDrawToGroup();
         return;
       }
 

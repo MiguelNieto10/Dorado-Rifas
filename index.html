@@ -148,13 +148,19 @@
     <input id="adminDate" type="date">
   </label>
   <button class="btn btn-outline btn-sm" type="button" id="adminReload">Actualizar</button>
-  <button class="btn btn-gold btn-sm" type="button" id="adminWarnDraw">Avisar sorteo (5 min)</button>
+  <button class="btn btn-gold btn-sm" type="button" id="adminWarnDraw">Avisar en el grupo (5 min)</button>
   <a class="btn btn-ghost btn-sm" href="/" target="dorado-player">Sitio de jugadores</a>
 </div>
 <div id="adminLiveLists" class="admin-live-lists"></div>
 <div id="drawAlert" class="draw-alert" hidden>
-  <p id="drawAlertText">En 5 minutos inicia el sorteo.</p>
-  <button class="btn btn-gold btn-sm" type="button" id="drawAlertOk">Entendido</button>
+  <div class="draw-alert-card">
+    <p class="draw-alert-kicker">Sorteo en 5 minutos</p>
+    <p id="drawAlertText">En 5 minutos inicia el sorteo. Se juega tablero por tablero, empezando por $2.000, solo con números verdes y pagos.</p>
+    <div class="draw-alert-actions">
+      <button class="btn btn-gold" type="button" id="drawAlertGroup" hidden>Pegar en el grupo de WhatsApp</button>
+      <button class="btn btn-outline" type="button" id="drawAlertOk">Entendido</button>
+    </div>
+  </div>
 </div>
 
 <main>
