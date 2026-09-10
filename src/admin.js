@@ -118,6 +118,7 @@ function summarizeUser(user, uid, bundle, mode, dateStr) {
   return {
     uid,
     username,
+    email: user.email || "",
     phone: user.phone || "—",
     createdAt: user.createdAt || 0,
     cardsPlayed,
@@ -188,7 +189,7 @@ function renderUsers(listEl, rows) {
           '<div class="admin-user-top">' +
             '<span class="admin-idx">' + (i + 1) + "</span>" +
             '<div><div class="admin-user-name">' + escapeHtml(u.username) + "</div>" +
-            '<div class="admin-user-meta">Celular ' + escapeHtml(u.phone) + "</div></div>" +
+            '<div class="admin-user-meta">Celular ' + escapeHtml(u.phone) + (u.email ? " · " + escapeHtml(u.email) : "") + "</div></div>" +
             active +
           "</div>" +
           '<div class="admin-user-grid">' +
@@ -200,6 +201,9 @@ function renderUsers(listEl, rows) {
             "<div><span class=\"k\">Pagó</span><span class=\"v\">" + fmt(u.spent) + "</span></div>" +
           "</div>" +
           '<p class="admin-win-line">Premios: ' + escapeHtml(wins) + "</p>" +
+          (u.email
+            ? '<button class="btn btn-outline btn-sm" type="button" data-resend-welcome="' + escapeHtml(u.email) + '" data-resend-name="' + escapeHtml(u.username) + '">Reenviar correo de bienvenida</button>'
+            : "") +
         "</article>"
       );
     })
@@ -433,6 +437,34 @@ export function bindAdminFilters(getCardsCache) {
   const reload = document.getElementById("adminReload");
   if (reload) {
     reload.addEventListener("click", () => refreshAdminViews(getCardsCache()));
+  }
+  const usersEl = document.getElementById("adminUserList");
+  if (usersEl) {
+    usersEl.addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-resend-welcome]");
+      if (!btn) return;
+      btn.disabled = true;
+      const prev = btn.textContent;
+      btn.textContent = "Enviando…";
+      try {
+        const res = await fetch("/api/enviar-bienvenida", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: btn.dataset.resendWelcome, username: btn.dataset.resendName }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.ok) btn.textContent = "Correo enviado";
+        else {
+          btn.disabled = false;
+          btn.textContent = prev;
+          window.alert(data.error || "No se pudo enviar. Revisa SMTP_USER y SMTP_PASS en Vercel.");
+        }
+      } catch {
+        btn.disabled = false;
+        btn.textContent = prev;
+        window.alert("No se pudo enviar el correo.");
+      }
+    });
   }
   const resetEl = document.getElementById("adminResetList");
   if (resetEl) {

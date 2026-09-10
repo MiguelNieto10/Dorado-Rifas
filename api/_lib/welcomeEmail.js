@@ -1,14 +1,20 @@
 const SITE = "https://dorado-rifas.vercel.app";
 const FROM_NAME = "Dorado Rifas";
-const FROM_EMAIL = process.env.MAIL_FROM || "Administrador@dorado-rifas.vercel.app";
+
+function senderAddress() {
+  return String(process.env.SMTP_USER || process.env.GMAIL_USER || "").trim();
+}
 
 export function welcomeFrom() {
-  return `${FROM_NAME} <${FROM_EMAIL}>`;
+  const sender = senderAddress();
+  const named = String(process.env.MAIL_FROM || "").trim();
+  const address = sender || named || "Administrador@dorado-rifas.vercel.app";
+  return `${FROM_NAME} <${address}>`;
 }
 
 export function welcomeSubject(username) {
   const name = String(username || "").trim() || "jugador";
-  return `Te doy la bienvenida a Dorado, ${name}`;
+  return `Tu cuenta en Dorado ya está lista, ${name}`;
 }
 
 export function welcomeText(username) {

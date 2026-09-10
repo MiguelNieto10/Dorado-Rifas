@@ -51,11 +51,17 @@ export default async function handler(req, res) {
   try {
     await transport.sendMail({
       from: welcomeFrom(),
+      sender: user,
       to: email,
-      replyTo: process.env.MAIL_FROM || "Administrador@dorado-rifas.vercel.app",
+      replyTo: user,
+      envelope: { from: user, to: email },
       subject: welcomeSubject(username),
       text: welcomeText(username),
       html: welcomeHtml(username),
+      headers: {
+        "X-Priority": "3",
+        "X-Auto-Response-Suppress": "OOF, AutoReply",
+      },
     });
     res.status(200).json({ ok: true });
   } catch (err) {

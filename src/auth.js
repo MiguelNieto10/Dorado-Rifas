@@ -477,6 +477,9 @@ export function runAuthGate() {
           });
           sessionUser = cred.user;
           sessionProfile = { username: username.trim(), fullName, email, phone, joinedWhatsapp: false, registrationComplete: false };
+          const mailed = await sendWelcomeEmail(email, username.trim());
+          sessionProfile.welcomeEmailSent = !!mailed.ok;
+          await setDoc(doc(firestore, "users", cred.user.uid), { welcomeEmailSent: !!mailed.ok, welcomeEmailAt: Date.now() }, { merge: true });
           if (document.getElementById("authUseBio").checked) {
             try {
               await enrollPasskey(firestore, cred.user.uid, username.trim());
@@ -514,18 +517,33 @@ export function runAuthGate() {
       else await finish(sessionUser, sessionProfile);
     });
 
+    async function sendWelcomeEmail(email, username) {
+      const real = String(email || "").trim().toLowerCase();
+      if (!real || real.endsWith("@dorado-rifas.app")) return { ok: false };
+      try {
+        const res = await fetch("/api/enviar-bienvenida", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          keepalive: true,
+          body: JSON.stringify({ email: real, username }),
+        });
+        const data = await res.json().catch(() => ({}));
+        return { ok: !!(res.ok && data.ok), error: data.error || "" };
+      } catch {
+        return { ok: false };
+      }
+    }
+
     async function completeWhatsappJoin() {
       if (!sessionUser) return;
       const next = { ...sessionProfile, joinedWhatsapp: true, registrationComplete: true };
+      if (!next.welcomeEmailSent && next.email) {
+        const mailed = await sendWelcomeEmail(next.email, next.username);
+        next.welcomeEmailSent = !!mailed.ok;
+        next.welcomeEmailAt = Date.now();
+      }
       await setDoc(doc(firestore, "users", sessionUser.uid), next, { merge: true });
       sessionProfile = next;
-      if (next.email) {
-        fetch("/api/enviar-bienvenida", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: next.email, username: next.username }),
-        }).catch(() => {});
-      }
       await finish(sessionUser, sessionProfile);
     }
 
