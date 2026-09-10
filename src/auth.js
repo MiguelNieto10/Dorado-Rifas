@@ -123,22 +123,6 @@ async function enrollPasskey(uid, username) {
   localStorage.setItem(PASSKEY_UID_KEY, uid);
 }
 
-async function unlockWithPasskey() {
-  const id = localStorage.getItem(PASSKEY_ID_KEY);
-  if (!id) throw new Error("Este celular aún no tiene huella guardada.");
-  const cred = await navigator.credentials.get({
-    publicKey: {
-      challenge: crypto.getRandomValues(new Uint8Array(32)),
-      rpId: location.hostname,
-      allowCredentials: [{ type: "public-key", id: b64urlToBuf(id) }],
-      userVerification: "required",
-      timeout: 60000,
-    },
-  });
-  if (!cred) throw new Error("No se reconoció la huella.");
-  sessionStorage.setItem(UNLOCK_KEY, "1");
-}
-
 function showStep(name) {
   document.querySelectorAll("[data-auth-step]").forEach((el) => {
     el.hidden = el.dataset.authStep !== name;
@@ -202,12 +186,7 @@ export function runAuthGate() {
         sessionProfile = profile;
       }
       const needWa = !adminOk && !profile.joinedWhatsapp;
-      const needUnlock = localStorage.getItem(PASSKEY_UID_KEY) === user.uid && !sessionStorage.getItem(UNLOCK_KEY);
 
-      if (needUnlock && !justRegistered) {
-        showStep("unlock");
-        return { user, profile, wait: true };
-      }
       if (needWa) {
         document.getElementById("authWaDone").disabled = true;
         showStep("whatsapp");
@@ -266,7 +245,6 @@ export function runAuthGate() {
         mode === "admin" ? "Entrar como administrador" : isRegister ? "Crear cuenta" : "Entrar";
       canUseBiometrics().then((ok) => {
         document.getElementById("authUseBioWrap").hidden = !(ok && isRegister);
-        document.getElementById("authUnlockBio").hidden = !ok;
       });
     }
 
@@ -354,22 +332,6 @@ export function runAuthGate() {
     document.getElementById("authBioSkip").addEventListener("click", async () => {
       if (!sessionProfile.joinedWhatsapp) showStep("whatsapp");
       else await finish(sessionUser, sessionProfile);
-    });
-
-    document.getElementById("authUnlockBio").addEventListener("click", async () => {
-      setAuthError("");
-      try {
-        await unlockWithPasskey();
-        if (sessionUser && sessionProfile && !sessionProfile.joinedWhatsapp) showStep("whatsapp");
-        else if (sessionUser) await finish(sessionUser, sessionProfile);
-      } catch (err) {
-        setAuthError("No se reconoció la huella. Entra con tu clave.");
-        showStep("form");
-      }
-    });
-    document.getElementById("authUnlockPassword").addEventListener("click", () => {
-      showStep("form");
-      document.getElementById("authModeLogin").click();
     });
 
     document.getElementById("authJoinWa").addEventListener("click", () => {

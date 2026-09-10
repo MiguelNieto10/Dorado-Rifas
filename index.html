@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dorado Rifas</title>
-<link rel="icon" type="image/png" href="/favicon.png">
-<link rel="apple-touch-icon" href="/favicon.png">
+<link rel="icon" type="image/png" href="/favicon.png?v=2">
+<link rel="apple-touch-icon" href="/favicon.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Jost:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="/src/styles.css">
@@ -14,7 +14,7 @@
 <div class="auth-gate" id="authGate">
   <div class="auth-card">
     <div class="auth-brand">
-      <img class="auth-logo" src="/logo.png" alt="Dorado — Gana al Instante">
+      <img class="auth-logo" src="/logo.png?v=2" alt="Dorado — Gana al Instante">
     </div>
 
     <p class="auth-error" id="authError" hidden></p>
@@ -56,13 +56,6 @@
       <button class="btn btn-ghost btn-block" type="button" id="authBioSkip" style="margin-top:10px;">Ahora no</button>
     </div>
 
-    <div data-auth-step="unlock" hidden>
-      <h2>Hola de nuevo</h2>
-      <p class="auth-lead">Confirma que eres tú para abrir Dorado.</p>
-      <button class="btn btn-gold btn-block" type="button" id="authUnlockBio">Entrar con huella o Face ID</button>
-      <button class="btn btn-ghost btn-block" type="button" id="authUnlockPassword" style="margin-top:10px;">Entrar con mi clave</button>
-    </div>
-
     <div data-auth-step="whatsapp" hidden>
       <h2>Grupo de resultados</h2>
       <p class="auth-lead">Es obligatorio unirse: ahí se publican el sorteo y el ganador de cada cartón. WhatsApp no deja agregarte solo — pulsa el botón, entra al grupo y luego confirma.</p>
@@ -78,7 +71,7 @@
 
 <header class="topbar">
   <button type="button" class="brand" data-nav="lobby" title="Dorado">
-    <img class="brand-logo" src="/logo.png" alt="Dorado — Gana al Instante">
+    <img class="brand-logo" src="/logo.png?v=2" alt="Dorado — Gana al Instante">
   </button>
   <nav class="nav">
     <button type="button" data-nav="lobby" class="active">Cartones</button>
