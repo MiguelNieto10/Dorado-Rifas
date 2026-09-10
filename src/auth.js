@@ -49,8 +49,8 @@ function firebaseErrorEs(err) {
   if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
     return "Nombre de usuario o clave incorrectos.";
   }
-  if (code === "auth/operation-not-allowed") {
-    return "Falta activar Email/Password en Firebase (Authentication → Sign-in method).";
+  if (code === "auth/operation-not-allowed" || code === "auth/configuration-not-found") {
+    return "Falta activar Authentication en Firebase: Build → Authentication → Comenzar → Correo/contraseña → Activar. En Authorized domains agrega dorado-rifas.vercel.app";
   }
   if (code === "auth/too-many-requests") return "Demasiados intentos. Espera un momento.";
   return (err && err.message) || "No se pudo completar. Intenta de nuevo.";
@@ -171,8 +171,6 @@ export function runAuthGate() {
 
     async function afterSignedIn(user, { justRegistered } = {}) {
       const profile = await loadProfile(user);
-      const bioOk = await canUseBiometrics();
-      const offerBio = justRegistered && bioOk;
       const needWa = !profile.joinedWhatsapp;
       const needUnlock = localStorage.getItem(PASSKEY_UID_KEY) === user.uid && !sessionStorage.getItem(UNLOCK_KEY);
 
@@ -180,11 +178,8 @@ export function runAuthGate() {
         showStep("unlock");
         return { user, profile, wait: true };
       }
-      if (offerBio) {
-        showStep("bio");
-        return { user, profile, wait: true };
-      }
       if (needWa) {
+        document.getElementById("authWaDone").disabled = true;
         showStep("whatsapp");
         return { user, profile, wait: true };
       }
@@ -210,19 +205,27 @@ export function runAuthGate() {
       await afterSignedIn(user, { justRegistered: false });
     });
 
+    function syncRegisterFields() {
+      const isRegister = document.getElementById("authModeRegister").classList.contains("active");
+      document.getElementById("authPhoneWrap").hidden = !isRegister;
+      document.getElementById("authSubmit").textContent = isRegister ? "Crear cuenta" : "Entrar";
+      canUseBiometrics().then((ok) => {
+        document.getElementById("authUseBioWrap").hidden = !(ok && isRegister);
+        document.getElementById("authUnlockBio").hidden = !ok;
+      });
+    }
+
     document.getElementById("authModeRegister").addEventListener("click", () => {
       document.getElementById("authModeRegister").classList.add("active");
       document.getElementById("authModeLogin").classList.remove("active");
-      document.getElementById("authPhoneWrap").hidden = false;
-      document.getElementById("authSubmit").textContent = "Crear cuenta";
       setAuthError("");
+      syncRegisterFields();
     });
     document.getElementById("authModeLogin").addEventListener("click", () => {
       document.getElementById("authModeLogin").classList.add("active");
       document.getElementById("authModeRegister").classList.remove("active");
-      document.getElementById("authPhoneWrap").hidden = true;
-      document.getElementById("authSubmit").textContent = "Entrar";
       setAuthError("");
+      syncRegisterFields();
     });
 
     document.getElementById("authForm").addEventListener("submit", async (e) => {
@@ -268,6 +271,13 @@ export function runAuthGate() {
           });
           sessionUser = cred.user;
           sessionProfile = { username: username.trim(), phone, joinedWhatsapp: false };
+          if (document.getElementById("authUseBio").checked) {
+            try {
+              await enrollPasskey(cred.user.uid, username.trim());
+            } catch {
+              setAuthError("Cuenta creada. No se pudo guardar la huella; puedes entrar con tu clave.");
+            }
+          }
           await afterSignedIn(cred.user, { justRegistered: true });
         } else {
           const cred = await signInWithEmailAndPassword(auth, email, password);
@@ -312,6 +322,7 @@ export function runAuthGate() {
 
     document.getElementById("authJoinWa").addEventListener("click", () => {
       window.open(WHATSAPP_GROUP_LINK, "_blank", "noopener");
+      document.getElementById("authWaDone").disabled = false;
     });
     document.getElementById("authWaDone").addEventListener("click", async () => {
       if (!sessionUser) return;
@@ -321,9 +332,6 @@ export function runAuthGate() {
       await finish(sessionUser, sessionProfile);
     });
 
-    canUseBiometrics().then((ok) => {
-      document.getElementById("authBioHint").hidden = !ok;
-      document.getElementById("authUnlockBio").hidden = !ok;
-    });
+    syncRegisterFields();
   });
 }

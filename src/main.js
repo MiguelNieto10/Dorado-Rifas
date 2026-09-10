@@ -1,5 +1,6 @@
 import { connectFirestore } from "./db.js";
 import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
+import { createDrawRecorder } from "./drawRecord.js";
 
 /* ================================================================
    DORADO — RIFAS & SORTEOS (prototipo con dinero simulado)
@@ -38,7 +39,7 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
   // ver el proceso entero ahora mismo sin esperar.
   const DEMO_SPEED = true;
   const SPIN_MS = 10000; // 10 segundos: el temporizador cuenta 10, 9, 8… hasta 0
-  const REVEAL_HOLD_MS = 7000; // cuánto se queda visible el resultado antes de reabrir el cartón
+  const REVEAL_HOLD_MS = 16000; // tiempo para enviar el sorteo al grupo
 
   const PROFILE = { name: 'Jugador', city: 'Bogotá' };
 
@@ -474,6 +475,8 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
 
   let drawRunning = {};
   let lastWinnerMsg = '';
+  let lastDrawFile = null;
+  let drawRec = null;
   function runDrawAnimation(card){
     const overlayEl = document.getElementById('drawOverlay');
     // CORRECCIÓN CLAVE: la bandera "drawRunning" es solo una variable
@@ -501,6 +504,9 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
     // dónde estabas mirando, subimos la página al inicio apenas
     // arranca el sorteo.
     window.scrollTo({top:0, left:0, behavior:'instant'});
+
+    drawRec = createDrawRecorder();
+    if(!drawRec.start()) drawRec = null;
 
     // Si la app se recargó a mitad de un sorteo, retomamos el
     // conteo desde donde iba en vez de empezar de cero.
@@ -545,6 +551,7 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
             '<div class="draw-ring" style="--pct:100"><span class="ring-num">0</span></div>' +
             '<div class="reel"><span class="reel-digit">' + card.pendingWinner[0] + '</span><span class="reel-digit">' + card.pendingWinner[1] + '</span></div>' +
             '<p class="draw-msg">¡Aquí está el número ganador!</p>';
+          if(drawRec) drawRec.spin({ kicker:'Cartón ' + fmt(card.value) + ' · sorteo en vivo', sec:0, d0:card.pendingWinner[0], d1:card.pendingWinner[1] });
           chime([784], 0.4);
           setTimeout(finishOnce, 900);
           return;
@@ -556,6 +563,7 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
           '<div class="draw-ring" style="--pct:' + Math.min(100,pct) + '"><span class="ring-num">' + secLeft + '</span></div>' +
           '<div class="reel spinning"><span class="reel-digit">' + current[0] + '</span><span class="reel-digit">' + current[1] + '</span></div>' +
           '<p class="draw-msg">Girando… el número ganador aparecerá al llegar a 0</p>';
+        if(drawRec) drawRec.spin({ kicker:'Cartón ' + fmt(card.value) + ' · sorteo en vivo', sec:secLeft, d0:current[0], d1:current[1] });
         requestAnimationFrame(frame);
       }catch(e){
         // Si algo inesperado falla a mitad del giro, no dejamos la
@@ -588,14 +596,44 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
 
     // Mensaje listo para pegar en el grupo de WhatsApp: sirve como
     // "constancia" pública de que el premio se entregó de verdad.
-    lastWinnerMsg = '🏆 *Dorado Rifas* — ¡Tenemos ganador!\n' +
+    lastWinnerMsg = '🏆 *Dorado Rifas* — Sorteo oficial\n' +
       'Cartón: ' + fmt(value) + '\n' +
-      'Número ganador: ' + card.pendingWinner + '\n' +
+      'Número ganador: *' + card.pendingWinner + '*\n' +
       'Ganador(a): ' + winnerName + '\n' +
       'Ciudad: ' + winnerCity + '\n' +
-      'Premio: ' + fmt(prize) + '\n' +
+      'Dinero ganado: ' + fmt(prize) + '\n' +
       'Fecha: ' + new Date().toLocaleString('es-CO',{dateStyle:'medium',timeStyle:'short'}) + '\n\n' +
-      '¡Gracias por jugar! 🎉';
+      'El cartón de ' + fmt(value) + ' ya está *habilitado de nuevo* para todo el público.\n' +
+      'Únete y juega: ' + location.origin;
+
+    if(usingDb && db){
+      db.doc('draws/' + value + '-' + Date.now()).set({
+        cardValue: value,
+        winningNumber: card.pendingWinner,
+        winnerName,
+        winnerCity,
+        prize,
+        ts: Date.now(),
+        newCardOpen: true
+      }).catch(()=>{});
+    }
+
+    const rec = drawRec;
+    drawRec = null;
+    if(rec){
+      rec.winner({
+        kicker: 'Cartón ' + fmt(value) + ' · sorteo en vivo',
+        number: card.pendingWinner,
+        name: winnerName,
+        city: winnerCity,
+        prize: fmt(prize)
+      });
+      rec.stop().then((blob)=>{
+        if(!blob){ lastDrawFile = null; return; }
+        const ext = blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
+        lastDrawFile = new File([blob], 'sorteo-dorado-' + card.pendingWinner + '.' + ext, { type: blob.type });
+      }).catch(()=>{ lastDrawFile = null; });
+    }
 
     const overlay = document.getElementById('drawOverlay');
     overlay.classList.toggle('is-win', wonByUser);
@@ -612,7 +650,8 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
                    : '<p class="draw-msg" style="margin-top:10px;">Este cartón se reabre en unos segundos para todo el público.</p>') +
       '</div>' +
       '<div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:2px;">' +
-        '<button class="btn btn-outline btn-sm" id="copyWinnerMsgBtn" type="button">📋 Copiar mensaje para el grupo</button>' +
+        '<button class="btn btn-gold btn-sm" id="shareWaDrawBtn" type="button">Enviar sorteo al grupo</button>' +
+        '<button class="btn btn-outline btn-sm" id="copyWinnerMsgBtn" type="button">Copiar mensaje</button>' +
         '<button class="btn btn-outline" id="drawCloseBtn" type="button" data-value="' + card.value + '">Cerrar</button>' +
       '</div>';
 
@@ -852,6 +891,26 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
       }
       if(t.closest('#withdrawCancel')){ closeModal(); return; }
       if(t.closest('#withdrawConfirm')){ doWithdraw(parseInt(document.getElementById('withdrawInput').value, 10)); return; }
+
+      if(t.closest('#shareWaDrawBtn')){
+        const send = async function(){
+          try{
+            const payload = { title:'Dorado Rifas', text: lastWinnerMsg };
+            if(lastDrawFile && navigator.canShare && navigator.canShare({ files:[lastDrawFile] })){
+              payload.files = [lastDrawFile];
+            }
+            if(navigator.share){
+              await navigator.share(payload);
+              return;
+            }
+          }catch(e){ /* el usuario canceló o el celular no pudo adjuntar el video */ }
+          try{ navigator.clipboard.writeText(lastWinnerMsg); }catch(e2){}
+          window.open('https://wa.me/?text=' + encodeURIComponent(lastWinnerMsg), '_blank', 'noopener');
+          toast('Elige el grupo de Dorado y envía. Si no salió el video, pega el mensaje.');
+        };
+        send();
+        return;
+      }
 
       if(t.closest('#copyWinnerMsgBtn')){
         try{

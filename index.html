@@ -40,7 +40,10 @@
           <input type="checkbox" id="authRemember" checked>
           Recordar clave en este celular
         </label>
-        <p class="auth-note" id="authBioHint">Si tu celular lo permite, después podrás abrir la app con huella o Face ID.</p>
+        <label class="auth-check" id="authUseBioWrap" hidden>
+          <input type="checkbox" id="authUseBio">
+          Entrar con huella o Face ID (si no, solo con clave)
+        </label>
         <button class="btn btn-gold btn-block" type="submit" id="authSubmit">Crear cuenta</button>
       </form>
     </div>
@@ -61,9 +64,9 @@
 
     <div data-auth-step="whatsapp" hidden>
       <h2>Grupo de resultados</h2>
-      <p class="auth-lead">En el grupo de WhatsApp se publican los ganadores de cada cartón. WhatsApp no deja unirnos por ti: tienes que entrar con el link.</p>
+      <p class="auth-lead">Es obligatorio unirse: ahí se publican el sorteo y el ganador de cada cartón. WhatsApp no deja agregarte solo — pulsa el botón, entra al grupo y luego confirma.</p>
       <button class="btn btn-gold btn-block" type="button" id="authJoinWa">Unirme al grupo de WhatsApp</button>
-      <button class="btn btn-ghost btn-block" type="button" id="authWaDone" style="margin-top:10px;">Ya me uní — entrar a Dorado</button>
+      <button class="btn btn-ghost btn-block" type="button" id="authWaDone" style="margin-top:10px;" disabled>Ya me uní — entrar a Dorado</button>
     </div>
   </div>
 </div>

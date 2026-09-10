@@ -457,6 +457,7 @@
     background:rgba(193,74,95,0.16); border:1px solid rgba(193,74,95,0.4); color:var(--garnet-bright);
     border-radius:var(--radius-s); padding:10px 12px; font-size:0.82rem; margin-bottom:14px;
   }
+  .auth-card .btn:disabled{opacity:0.4; cursor:not-allowed;}
 
   /* ============================================================
      TOAST
