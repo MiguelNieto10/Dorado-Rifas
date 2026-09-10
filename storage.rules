@@ -1,8 +1,19 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.admin == true ||
+        request.auth.token.email == 'miguel_np_10@dorado-rifas.app'
+      );
+    }
+    match /draw-videos/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
     match /{allPaths=**} {
-      allow read, write: if true;
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
     }
   }
 }

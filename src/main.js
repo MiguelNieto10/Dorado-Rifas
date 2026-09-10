@@ -1,4 +1,5 @@
-import { connectFirestore } from "./db.js";
+import { connectFirestore, getFirebaseApp } from "./db.js";
+import { getAuth } from "firebase/auth";
 import { runAuthGate, signOutSession, isAdminEntry } from "./auth.js";
 import { createDrawRecorder } from "./drawRecord.js";
 import { archiveDrawVideo, bogotaDateKey } from "./drawStore.js";
@@ -124,20 +125,14 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     return { date: parts.year + '-' + parts.month + '-' + parts.day, hour: parseInt(parts.hour, 10) };
   }
   function maybeScheduledDraws(){
+    if(!isAdmin) return;
     const { date, hour } = bogotaStamp();
     if(hour < DRAW_HOUR_BOGOTA) return;
     CARD_VALUES.forEach((value)=>{
       const card = cardsCache[value];
       if(!card || card.status === 'drawing') return;
       if(card.lastDrawDate === date) return;
-      expireHolds(card);
-      const pool = paidNumbers(card);
-      card.lastDrawDate = date;
-      if(pool.length === 0){
-        saveCard(value);
-        return;
-      }
-      startCountdown(card);
+      startCountdown(card, false);
     });
   }
 
@@ -280,9 +275,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
             cardsCache[value].status = 'open';
           }
         } else {
-          const fresh = emptyLiveBoard(value, []);
-          cardsCache[value] = fresh;
-          db.doc('cards/'+value).set(fresh).catch(()=>{});
+          cardsCache[value] = emptyLiveBoard(value, []);
         }
         renderLobbyCard(value);
         if(openCardValue === value) renderCardDetail(value);
@@ -326,26 +319,47 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     if(openCardValue === value) renderCardDetail(value);
     renderAdminLiveLists();
     if(!usingDb) return;
-    const fields = { sold: card.sold, boardGen: BOARD_LIVE_GEN };
-    keys.forEach((n)=>{
-      fields['numbers.' + n] = card.numbers[n] || null;
-    });
-    db.doc('cards/'+value).patch(fields).catch((err)=>{
-      console.error('No se actualizó el tablero', value, err);
-      db.doc('cards/'+value).set(cardToDb(card)).catch((e)=>console.error(e));
-    });
+    apiCard({ action: 'reserve', value, numbers: keys });
   }
 
   function saveCard(value){
     const card = cardsCache[value];
-    if(usingDb){
-      db.doc('cards/'+value).set(cardToDb(card)).catch((err)=>{
-        console.error('No se guardó el tablero', value, err);
-      });
-    }
     renderLobbyCard(value);
     if(openCardValue === value) renderCardDetail(value);
     renderAdminLiveLists();
+    if(!usingDb) return;
+    if(!isAdmin) return;
+    apiCard({ action: 'save', value, card: cardToDb(card) });
+  }
+
+  async function apiCard(payload){
+    try{
+      const app = getFirebaseApp();
+      const user = app && getAuth(app).currentUser;
+      const token = user ? await user.getIdToken() : '';
+      const res = await fetch('/api/card', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok){
+        console.error('Tablero no guardado', payload.action, data.error);
+        if(data.error) toast(data.error);
+        return null;
+      }
+      if(data.card && payload.value != null){
+        cardsCache[payload.value] = JSON.parse(JSON.stringify(data.card));
+        if(!cardsCache[payload.value].numbers) cardsCache[payload.value].numbers = {};
+        renderLobbyCard(payload.value);
+        if(openCardValue === payload.value) renderCardDetail(payload.value);
+        renderAdminLiveLists();
+      }
+      return data;
+    }catch(err){
+      console.error(err);
+      return null;
+    }
   }
 
   function addActivity(kind, desc, amount){
@@ -387,7 +401,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     slot.confirmed = true;
     delete slot.heldUntil;
     recountSold(card);
-    persistSlots(value, [num]);
+    if(usingDb) apiCard({ action: 'confirm', value, num });
+    else saveCard(value);
     toast('Número ' + num + ' del tablero ' + fmt(value) + ' asegurado en verde.');
     return true;
   }
@@ -489,7 +504,10 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   function renderLobbyCard(value){
     const card = cardsCache[value];
     if(!card) return;
-    if(expireHolds(card)) saveCard(value);
+    if(expireHolds(card)){
+      if(usingDb) apiCard({ action: 'expire', value });
+      else saveCard(value);
+    }
     let el = document.getElementById('ticket-'+value);
     if(!el){
       el = document.createElement('div');
@@ -519,7 +537,10 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   function renderCardDetail(value){
     const card = cardsCache[value];
     if(!card) return;
-    if(expireHolds(card)) saveCard(value);
+    if(expireHolds(card)){
+      if(usingDb) apiCard({ action: 'expire', value });
+      else saveCard(value);
+    }
     document.getElementById('cdTitle').textContent = fmt(value);
     document.getElementById('cdSold').textContent = card.sold + '/100';
     document.getElementById('cdPot').textContent = fmt(card.sold * value * 0.5);
@@ -681,7 +702,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     const toFill = available.sort(()=>Math.random()-0.5).slice(0, Math.min(count, available.length));
     toFill.forEach(n=>{ card.numbers[n] = Object.assign(randomBot(), { confirmed:true, pending:false }); });
     recountSold(card);
-    if(count === Infinity && paidNumbers(card).length > 0){ startCountdown(card); }
+    if(count === Infinity && paidNumbers(card).length > 0){ startCountdown(card, true); }
     saveCard(value);
     toast(toFill.length + ' jugadores simulados se unieron al tablero ' + fmt(value));
   }
@@ -691,7 +712,14 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   // arranca el sorteo YA MISMO: decide el número ganador, avisa con
   // un sonido y un mensaje, y abre la pantalla de sorteo con el
   // temporizador visible de 10 a 0.
-  function startCountdown(card){
+  function startCountdown(card, force){
+    if(usingDb){
+      apiCard({ action: 'start-draw', value: card.value, force: !!force }).then((data)=>{
+        const next = data && data.card ? cardsCache[card.value] : card;
+        if(next && next.status === 'drawing') runDrawAnimation(next);
+      });
+      return;
+    }
     const pool = paidNumbers(card);
     if(pool.length === 0) return;
     if(card.status === 'drawing' && card.pendingWinner) return;
@@ -838,6 +866,12 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
   function finishDraw(card){
     if(!card || !card.pendingWinner) return;
+    if(usingDb && !card.drawSettled){
+      apiCard({ action: 'settle', value: card.value }).then((data)=>{
+        if(data && data.card) finishDraw(cardsCache[card.value]);
+      });
+      return;
+    }
     const winnerSlot = card.numbers[card.pendingWinner];
     const value = card.value;
     const prize = (card.drawCollected != null ? card.drawCollected : paidNumbers(card).length * value) * 0.5;
@@ -854,8 +888,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       card.revealEndsAt = Date.now() + REVEAL_HOLD_MS;
       card.history = [{ winningNumber:card.pendingWinner, winnerName, winnerCity, prize, wonByUser:false, ts:Date.now(), winnerUid: winnerSlot && winnerSlot.ownerUid ? winnerSlot.ownerUid : null }]
         .concat(card.history||[]).slice(0, 365);
-      saveCard(value);
-      if(usingDb && db){
+      if(!usingDb) saveCard(value);
+      if(!usingDb && db){
         db.doc('draws/' + drawKey).set({
           cardValue: value,
           winningNumber: card.pendingWinner,
@@ -991,6 +1025,11 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       if(layer) layer.innerHTML = '';
     }
     drawRunning[card.value] = false;
+
+    if(usingDb){
+      apiCard({ action: 'reopen', value: card.value });
+      return;
+    }
 
     if(card.status === 'open' && card.sold === 0) return;
 
@@ -1318,7 +1357,10 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       CARD_VALUES.forEach((value)=>{
         const card = cardsCache[value];
         if(!card) return;
-        if(expireHolds(card)) saveCard(value);
+        if(expireHolds(card)){
+      if(usingDb) apiCard({ action: 'expire', value });
+      else saveCard(value);
+    }
         if(card.status === 'drawing' && card.spinEndsAt && Date.now() >= card.spinEndsAt + 2000){
           finishDraw(card);
         }

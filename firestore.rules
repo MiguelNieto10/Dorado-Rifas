@@ -1,11 +1,85 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // MODO DEMO / aprendizaje: lectura y escritura abiertas.
-    // Cuando la app tenga usuarios reales, hay que restringir esto
-    // (por ejemplo: cada persona solo edita su propia billetera).
+    function signedIn() {
+      return request.auth != null;
+    }
+    function isAdmin() {
+      return signedIn() && (
+        request.auth.token.admin == true ||
+        request.auth.token.email == 'miguel_np_10@dorado-rifas.app'
+      );
+    }
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(uid)
+        && request.resource.data.username is string
+        && !request.resource.data.keys().hasAny(['role']);
+      allow update: if isAdmin() || (
+        isOwner(uid)
+        && request.resource.data.username == resource.data.username
+        && !request.resource.data.keys().hasAny(['role'])
+      );
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    match /usernames/{slug} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.uid) || isAdmin();
+    }
+
+    match /emails/{id} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isOwner(resource.data.uid) || isAdmin();
+    }
+
+    match /wallets/{uid} {
+      allow read, write: if isOwner(uid) || isAdmin();
+    }
+
+    match /plays/{id} {
+      allow get: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /cards/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /draws/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /passwordResets/{slug} {
+      allow create: if request.resource.data.status == 'pending';
+      allow read, update, delete: if isAdmin();
+    }
+
+    match /passkeys/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if signedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+    }
+
+    match /admins/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+    }
+
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

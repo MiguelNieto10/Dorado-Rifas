@@ -252,10 +252,18 @@ export function runAuthGate() {
         if (gate) gate.hidden = false;
         return { user, profile, wait: true };
       }
-      if (adminOk && profile.role !== "admin") {
-        const next = { ...profile, role: "admin" };
-        await setDoc(doc(firestore, "users", user.uid), next, { merge: true });
-        sessionProfile = next;
+      if (adminOk) {
+        try {
+          const token = await user.getIdToken();
+          await fetch("/api/ensure-admin", {
+            method: "POST",
+            headers: { Authorization: "Bearer " + token },
+          });
+          await user.getIdToken(true);
+        } catch {
+          /* si el servidor no está listo, el correo de admin sigue valiendo en las reglas */
+        }
+        sessionProfile = { ...profile, role: "admin" };
       } else {
         sessionProfile = profile;
       }
@@ -615,12 +623,10 @@ export function runAuthGate() {
           const taken = await getDoc(doc(firestore, "usernames", slug));
           if (taken.exists()) {
             const uid = taken.data().uid;
-            const profileSnap = uid ? await getDoc(doc(firestore, "users", uid)) : null;
-            const profile = profileSnap && profileSnap.exists() ? profileSnap.data() : {};
             await setDoc(doc(firestore, "passwordResets", slug), {
               uid,
-              username: profile.username || input,
-              phone: profile.phone || "",
+              username: input,
+              phone: "",
               status: "pending",
               createdAt: Date.now(),
             });
