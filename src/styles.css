@@ -205,7 +205,41 @@
     .nav{display:none;}
   }
 
-  main{max-width:1180px; margin:0 auto; padding:8px clamp(16px,4vw,40px) 80px;}
+  body:has(#authGate:not([hidden])) .casino-ambiance-app{opacity:0; visibility:hidden;}
+  .casino-ambiance{
+    position:fixed; inset:0; pointer-events:none; z-index:0; overflow:hidden;
+  }
+  .auth-gate .casino-ambiance{z-index:1;}
+  .chip{
+    position:absolute; width:min(128px, 28vw); height:auto;
+    opacity:0.38; filter:drop-shadow(0 12px 18px rgba(0,0,0,0.45));
+    will-change:transform;
+  }
+  .chip-a{
+    left:-18px; bottom:12%;
+    animation:chip-float-a 16s ease-in-out infinite;
+  }
+  .chip-b{
+    right:-14px; top:18%; width:min(96px, 22vw);
+    opacity:0.3;
+    animation:chip-float-b 20s ease-in-out infinite;
+  }
+  @keyframes chip-float-a{
+    0%,100%{ transform:translate3d(0,0,0) rotate(-12deg); }
+    50%{ transform:translate3d(10px,-18px,0) rotate(8deg); }
+  }
+  @keyframes chip-float-b{
+    0%,100%{ transform:translate3d(0,0,0) rotate(16deg); }
+    50%{ transform:translate3d(-12px,16px,0) rotate(-6deg); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .chip{animation:none;}
+  }
+  @media (max-width: 720px){
+    .chip{opacity:0.26;}
+    .chip-a{bottom:8%;}
+    .chip-b{top:12%;}
+  }
   .view[hidden]{display:none;}
 
   /* ============================================================
@@ -600,7 +634,7 @@
     display:flex; flex-direction:column; align-items:center;
     padding: max(10px, env(safe-area-inset-top)) 8px 6px;
     background:linear-gradient(180deg, var(--bg) 70%, transparent);
-    z-index:2;
+    z-index:2; position:relative;
   }
   .auth-logo{
     width:min(200px, 62vw); height:auto; display:block; object-fit:contain;
@@ -611,6 +645,7 @@
     overflow:auto; -webkit-overflow-scrolling:touch;
     display:flex; justify-content:center; align-items:flex-start;
     padding-bottom:24px;
+    position:relative; z-index:2;
   }
   .auth-card{
     width:100%; max-width:420px;
