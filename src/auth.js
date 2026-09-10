@@ -62,7 +62,6 @@ function adminSlugs() {
 }
 
 export function isAdminAccount(profile, username, email) {
-  if (profile && profile.role === "admin") return true;
   const fromEmail = String(email || (profile && profile.email) || "").split("@")[0];
   const candidates = [username, profile && profile.username, fromEmail];
   return candidates.some((value) => {

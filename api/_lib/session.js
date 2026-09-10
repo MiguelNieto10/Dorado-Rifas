@@ -25,8 +25,7 @@ export async function readSession(req) {
   }
   const snap = await db.collection("users").doc(decoded.uid).get();
   const profile = snap.exists ? snap.data() || {} : {};
-  const admin =
-    decoded.admin === true || isAdminUsername(profile, profile.username || decoded.name);
+  const admin = isAdminUsername(profile, profile.username || decoded.name);
   return { uid: decoded.uid, decoded, profile, admin, db, auth };
 }
 

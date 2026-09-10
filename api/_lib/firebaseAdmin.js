@@ -52,12 +52,15 @@ export function slugFromUsername(name) {
 }
 
 export function isAdminUsername(profile, username) {
-  if (profile && profile.role === "admin") return true;
   const raw = process.env.VITE_ADMIN_USERNAMES || "";
   const slugs = String(raw + ",Miguel_NP_10")
     .split(",")
     .map((s) => slugFromUsername(s))
     .filter(Boolean);
-  const slug = slugFromUsername(username || (profile && profile.username) || "");
-  return !!slug && slugs.includes(slug);
+  const fromEmail = String((profile && profile.email) || "").split("@")[0];
+  const candidates = [username, profile && profile.username, fromEmail];
+  return candidates.some((value) => {
+    const slug = slugFromUsername(value);
+    return !!slug && slugs.includes(slug);
+  });
 }

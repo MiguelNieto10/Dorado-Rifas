@@ -5,7 +5,7 @@
 import { getAuth } from "firebase/auth";
 import { getFirestore, collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { getFirebaseApp } from "./db.js";
-import { slugFromUsername, WHATSAPP_GROUP_LINK } from "./auth.js";
+import { slugFromUsername, isAdminAccount, WHATSAPP_GROUP_LINK } from "./auth.js";
 import { isWithinVideoRetention, pruneExpiredDrawArchives } from "./drawStore.js";
 
 const CARD_VALUES = [2000, 5000, 10000, 20000, 50000, 100000];
@@ -450,7 +450,17 @@ export async function refreshAdminViews(cardsCache) {
   const mode = document.getElementById("adminRange")?.value || "all";
   const dateStr = document.getElementById("adminDate")?.value || "";
 
+  const keepAdminSlug = "miguel_np_10";
+  let keptAdmin = false;
   const rows = cachedBundle.users
+    .filter((u) => {
+      const slug = slugFromUsername(u.username);
+      const admin = isAdminAccount(u, u.username, u.email) || u.role === "admin";
+      if (!admin) return true;
+      if (slug !== keepAdminSlug || keptAdmin) return false;
+      keptAdmin = true;
+      return true;
+    })
     .map((u) => summarizeUser(u, u.id || u.uid, cachedBundle, mode, dateStr))
     .sort((a, b) => Number(b.active) - Number(a.active) || a.username.localeCompare(b.username, "es"));
 
