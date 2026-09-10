@@ -279,7 +279,7 @@
   .activity-desc{font-size:0.88rem; color:var(--text);}
   .activity-date{font-size:0.72rem; color:var(--text-faint); margin-top:2px;}
   .activity-amt{font-family:var(--font-mono); font-weight:700; font-size:0.92rem; white-space:nowrap;}
-  .amt-pos{color:var(--emerald-bright);}
+  .amt-pos{color:var(--gold-bright);}
   .amt-neg{color:var(--text-dim);}
   .empty-note{padding:26px; text-align:center; color:var(--text-faint); font-size:0.86rem;}
 
@@ -348,8 +348,15 @@
   .draw-overlay{
     position:fixed; inset:0; background:radial-gradient(ellipse at 50% 30%, #191305 0%, #060608 72%);
     z-index:90; display:flex; align-items:center; justify-content:center; padding:20px;
+    overflow:hidden;
   }
-  .draw-stage{width:100%; max-width:480px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:18px;}
+  .draw-overlay.is-win{
+    background:radial-gradient(ellipse at 50% 28%, rgba(232,200,119,0.28) 0%, #191305 42%, #060608 78%);
+  }
+  .draw-stage{width:100%; max-width:480px; text-align:center; display:flex; flex-direction:column; align-items:center; gap:18px; position:relative; z-index:2;}
+  .confetti-layer{
+    position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:1;
+  }
   .draw-kicker{font-size:0.74rem; letter-spacing:0.16em; text-transform:uppercase; color:var(--gold-dim);}
   .draw-ring{
     --pct:0;
@@ -370,15 +377,44 @@
     background:linear-gradient(160deg, var(--surface-2), var(--surface)); border:1px solid var(--gold-dim);
     border-radius:var(--radius-l); padding:32px 28px; box-shadow:var(--shadow-pop); position:relative; overflow:hidden;
   }
-  .reveal-card.won{border-color:var(--gold-bright); box-shadow:0 0 0 1px var(--gold-bright), var(--shadow-pop);}
+  .reveal-card.won{
+    border-color:var(--gold-bright);
+    background:
+      radial-gradient(ellipse at 50% -10%, rgba(232,200,119,0.28), transparent 58%),
+      linear-gradient(165deg, var(--surface-2), var(--surface));
+    box-shadow:0 0 0 1px var(--gold-bright), 0 0 56px rgba(232,200,119,0.32), var(--shadow-pop);
+    animation:win-pop 0.55s ease-out;
+  }
+  @keyframes win-pop{
+    0%{ transform:scale(0.84); opacity:0; }
+    70%{ transform:scale(1.04); }
+    100%{ transform:scale(1); opacity:1; }
+  }
   .reveal-num{font-family:var(--font-mono); font-size:3.4rem; font-weight:700; color:var(--gold-bright); line-height:1;}
+  .reveal-card.won .reveal-num{
+    font-size:clamp(3.6rem, 12vw, 4.6rem);
+    text-shadow:0 0 28px rgba(232,200,119,0.65);
+  }
   .reveal-winner{font-family:var(--font-display); font-size:1.5rem; margin-top:8px;}
+  .reveal-card.won .reveal-winner{font-size:1.85rem; color:var(--gold-bright);}
   .reveal-city{color:var(--text-dim); font-size:0.88rem; margin-top:2px;}
-  .reveal-prize{margin-top:16px; font-family:var(--font-mono); font-size:1.7rem; color:var(--emerald-bright); font-weight:700;}
+  .reveal-prize{
+    margin-top:16px; font-family:var(--font-mono); font-size:1.85rem;
+    color:var(--gold-bright); font-weight:700;
+    text-shadow:0 0 18px rgba(232,200,119,0.4);
+  }
   .reveal-congrats{font-family:var(--font-display); font-size:1.1rem; color:var(--gold-bright); margin-bottom:6px;}
+  .reveal-card.won .reveal-congrats{font-size:1.65rem; letter-spacing:0.01em;}
 
-  .confetti-piece{position:absolute; top:-10px; width:7px; height:12px; opacity:0.9; animation:confetti-fall 2.6s linear forwards; border-radius:1px;}
-  @keyframes confetti-fall{ to{ transform:translateY(340px) rotate(340deg); opacity:0; } }
+  .confetti-piece{
+    position:absolute; top:-18px; border-radius:1px; opacity:0.95;
+    animation-name:confetti-fall; animation-timing-function:linear; animation-fill-mode:forwards;
+  }
+  .confetti-piece.round{border-radius:50%;}
+  @keyframes confetti-fall{
+    0%{ transform:translate3d(0,-12px,0) rotate(0deg); opacity:1; }
+    100%{ transform:translate3d(var(--dx, 24px), 108vh, 0) rotate(720deg); opacity:0; }
+  }
 
   /* ============================================================
      PUERTA DE ENTRADA (cuenta + WhatsApp)

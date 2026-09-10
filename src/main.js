@@ -597,15 +597,18 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
       'Fecha: ' + new Date().toLocaleString('es-CO',{dateStyle:'medium',timeStyle:'short'}) + '\n\n' +
       '¡Gracias por jugar! 🎉';
 
+    const overlay = document.getElementById('drawOverlay');
+    overlay.classList.toggle('is-win', wonByUser);
+
     const stage = document.getElementById('drawStage');
     stage.innerHTML =
       '<div class="reveal-card' + (wonByUser ? ' won' : '') + '" id="revealCard">' +
-        (wonByUser ? '<div class="reveal-congrats">🏆 ¡Felicidades, ganaste!</div>' : '<div class="reveal-congrats">Número ganador</div>') +
+        (wonByUser ? '<div class="reveal-congrats">¡Ganaste!</div>' : '<div class="reveal-congrats">Número ganador</div>') +
         '<div class="reveal-num">' + card.pendingWinner + '</div>' +
-        '<div class="reveal-winner">' + (wonByUser ? 'Tú' : winnerName) + '</div>' +
+        '<div class="reveal-winner">' + (wonByUser ? 'El premio es tuyo' : winnerName) + '</div>' +
         '<div class="reveal-city">' + winnerCity + '</div>' +
         '<div class="reveal-prize">' + fmt(prize) + '</div>' +
-        (wonByUser ? '<p class="draw-msg" style="margin-top:10px;">Tu premio ya se acreditó a tu billetera. Puedes retirarlo a Nequi o usarlo en otro cartón.</p>'
+        (wonByUser ? '<p class="draw-msg" style="margin-top:10px;">Ya está en tu billetera. Úsalo en otro cartón o retíralo a Nequi.</p>'
                    : '<p class="draw-msg" style="margin-top:10px;">Este cartón se reabre en unos segundos para todo el público.</p>') +
       '</div>' +
       '<div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:2px;">' +
@@ -613,7 +616,7 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
         '<button class="btn btn-outline" id="drawCloseBtn" type="button" data-value="' + card.value + '">Cerrar</button>' +
       '</div>';
 
-    if(wonByUser) spawnConfetti(document.getElementById('revealCard'));
+    spawnConfetti(overlay, wonByUser ? 90 : 36);
 
     // El botón "Cerrar" lo maneja el oyente central de clics (sección
     // 13), que lee data-value para saber a qué cartón cerrar/reabrir.
@@ -623,6 +626,7 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
   function closeDrawAndReset(card){
     if(!drawRunning[card.value]) return; // ya se cerró
     document.getElementById('drawOverlay').hidden = true;
+    document.getElementById('drawOverlay').classList.remove('is-win');
     drawRunning[card.value] = false;
 
     const fresh = freshCard(card.value);
@@ -637,6 +641,7 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
   // en un estado raro. No borra el historial de sorteos anteriores.
   function forceResetCard(value){
     document.getElementById('drawOverlay').hidden = true;
+    document.getElementById('drawOverlay').classList.remove('is-win');
     drawRunning[value] = false;
     const old = cardsCache[value];
     const fresh = freshCard(value);
@@ -647,17 +652,31 @@ import { runAuthGate, WHATSAPP_GROUP_LINK } from "./auth.js";
     toast('Cartón de ' + fmt(value) + ' reiniciado');
   }
 
-  function spawnConfetti(container){
+  function spawnConfetti(container, count){
     if(!container) return;
-    const colors = ['#e8c877','#c9a24b','#3aa47e','#efe8d8'];
-    for(let i=0;i<26;i++){
+    let layer = container.querySelector('.confetti-layer');
+    if(!layer){
+      layer = document.createElement('div');
+      layer.className = 'confetti-layer';
+      container.appendChild(layer);
+    }
+    layer.innerHTML = '';
+    // Paleta solo dorada / marfil / ámbar: el verde se salía de la gama casino.
+    const colors = ['#e8c877','#c9a24b','#f4e4b0','#efe8d8','#8a713a','#c98a2f'];
+    const n = count || 70;
+    for(let i=0;i<n;i++){
       const p = document.createElement('div');
-      p.className = 'confetti-piece';
+      const round = Math.random() > 0.55;
+      p.className = 'confetti-piece' + (round ? ' round' : '');
       p.style.left = (Math.random()*100) + '%';
       p.style.background = colors[Math.floor(Math.random()*colors.length)];
-      p.style.animationDelay = (Math.random()*0.4) + 's';
-      container.appendChild(p);
-      setTimeout(()=>p.remove(), 3200);
+      p.style.width = (round ? 6 + Math.random()*7 : 5 + Math.random()*5) + 'px';
+      p.style.height = (round ? 6 + Math.random()*7 : 10 + Math.random()*14) + 'px';
+      p.style.setProperty('--dx', (Math.random()*160 - 80) + 'px');
+      p.style.animationDuration = (2.4 + Math.random()*2.2) + 's';
+      p.style.animationDelay = (Math.random()*0.7) + 's';
+      layer.appendChild(p);
+      setTimeout(()=>p.remove(), 5200);
     }
   }
 
