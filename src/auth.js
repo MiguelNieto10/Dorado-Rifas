@@ -260,7 +260,6 @@ export function runAuthGate() {
       }
       if (!adminOk && profile.registrationComplete === false) {
         if (justRegistered) {
-          document.getElementById("authWaDone").disabled = true;
           showStep("whatsapp");
           return { user, profile, wait: true };
         }
@@ -490,18 +489,7 @@ export function runAuthGate() {
       else await finish(sessionUser, sessionProfile);
     });
 
-    document.getElementById("authWaCancel").addEventListener("click", async () => {
-      if (!sessionUser) {
-        showStep("form");
-        return;
-      }
-      await abortIncompleteRegistration(sessionUser, sessionProfile);
-    });
-    document.getElementById("authJoinWa").addEventListener("click", () => {
-      window.open(WHATSAPP_GROUP_LINK, "_blank", "noopener");
-      document.getElementById("authWaDone").disabled = false;
-    });
-    document.getElementById("authWaDone").addEventListener("click", async () => {
+    async function completeWhatsappJoin() {
       if (!sessionUser) return;
       const next = { ...sessionProfile, joinedWhatsapp: true, registrationComplete: true };
       await setDoc(doc(firestore, "users", sessionUser.uid), next, { merge: true });
@@ -514,6 +502,11 @@ export function runAuthGate() {
         }).catch(() => {});
       }
       await finish(sessionUser, sessionProfile);
+    }
+
+    document.getElementById("authJoinWa").addEventListener("click", async () => {
+      window.open(WHATSAPP_GROUP_LINK, "_blank", "noopener");
+      await completeWhatsappJoin();
     });
 
     document.getElementById("authBioLoginBtn").addEventListener("click", async () => {
