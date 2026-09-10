@@ -16,8 +16,10 @@ import {
   signInWithEmailAndPassword,
   onAuthStateChanged,
   updateProfile,
+  deleteUser,
+  signOut,
 } from "firebase/auth";
-import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { getFirebaseApp } from "./db.js";
 
 const PASSKEY_ID_KEY = "dorado.passkey.cred";
@@ -191,22 +193,47 @@ export function runAuthGate() {
       } else {
         sessionProfile = profile;
       }
-      const needWa = !adminOk && !profile.joinedWhatsapp;
-
-      if (needWa) {
-        document.getElementById("authWaDone").disabled = true;
-        showStep("whatsapp");
+      if (!adminOk && profile.registrationComplete === false) {
+        if (justRegistered) {
+          document.getElementById("authWaDone").disabled = true;
+          showStep("whatsapp");
+          return { user, profile, wait: true };
+        }
+        await abortIncompleteRegistration(user, profile);
         return { user, profile, wait: true };
       }
+
       await finish(user, sessionProfile || profile);
       return { user, profile: sessionProfile || profile, wait: false };
     }
 
+    async function abortIncompleteRegistration(user, profile) {
+      const slug = slugFromUsername((profile && profile.username) || (user && user.displayName) || "");
+      try {
+        if (slug) await deleteDoc(doc(firestore, "usernames", slug));
+      } catch { /* ignore */ }
+      try {
+        if (user && user.uid) await deleteDoc(doc(firestore, "users", user.uid));
+      } catch { /* ignore */ }
+      try {
+        if (user) await deleteUser(user);
+      } catch {
+        try { await signOut(auth); } catch { /* ignore */ }
+      }
+      sessionUser = null;
+      sessionProfile = null;
+      finishing = false;
+      showStep("form");
+      if (gate) gate.hidden = false;
+      setAuthError("Para terminar el registro debes unirte al grupo de WhatsApp. Vuelve a crear la cuenta cuando lo hagas.");
+    }
+
     let sessionUser = null;
     let sessionProfile = null;
-
     let initialAuthHandled = false;
+    let authSubmitInFlight = false;
     onAuthStateChanged(auth, async (user) => {
+      if (authSubmitInFlight) return;
       if (initialAuthHandled || finishing) return;
       initialAuthHandled = true;
       if (!user) {
@@ -217,6 +244,10 @@ export function runAuthGate() {
       }
       sessionUser = user;
       sessionProfile = await loadProfile(user);
+      if (!isAdminAccount(sessionProfile, sessionProfile.username || user.displayName) && sessionProfile.registrationComplete === false) {
+        await abortIncompleteRegistration(user, sessionProfile);
+        return;
+      }
       await afterSignedIn(user, { justRegistered: false, adminAttempt: isAdminEntry() });
     });
 
@@ -288,6 +319,7 @@ export function runAuthGate() {
       }
 
       try {
+        authSubmitInFlight = true;
         await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
         const email = emailFromUsername(username);
         if (isRegister) {
@@ -296,6 +328,7 @@ export function runAuthGate() {
             setAuthError("Ese nombre de usuario ya existe. Prueba otro o inicia sesión.");
             return;
           }
+          initialAuthHandled = true;
           const cred = await createUserWithEmailAndPassword(auth, email, password);
           await updateProfile(cred.user, { displayName: username.trim() });
           await setDoc(doc(firestore, "usernames", slug), { uid: cred.user.uid });
@@ -303,10 +336,11 @@ export function runAuthGate() {
             username: username.trim(),
             phone,
             joinedWhatsapp: false,
+            registrationComplete: false,
             createdAt: Date.now(),
           });
           sessionUser = cred.user;
-          sessionProfile = { username: username.trim(), phone, joinedWhatsapp: false };
+          sessionProfile = { username: username.trim(), phone, joinedWhatsapp: false, registrationComplete: false };
           if (document.getElementById("authUseBio").checked) {
             try {
               await enrollPasskey(cred.user.uid, username.trim());
@@ -316,12 +350,15 @@ export function runAuthGate() {
           }
           await afterSignedIn(cred.user, { justRegistered: true });
         } else {
+          initialAuthHandled = true;
           const cred = await signInWithEmailAndPassword(auth, email, password);
           sessionUser = cred.user;
           await afterSignedIn(cred.user, { justRegistered: false, adminAttempt });
         }
       } catch (err) {
         setAuthError(firebaseErrorEs(err));
+      } finally {
+        authSubmitInFlight = false;
       }
     });
 
@@ -329,7 +366,7 @@ export function runAuthGate() {
       setAuthError("");
       try {
         await enrollPasskey(sessionUser.uid, sessionProfile.username);
-        if (!sessionProfile.joinedWhatsapp) showStep("whatsapp");
+        if (!sessionProfile.joinedWhatsapp || sessionProfile.registrationComplete === false) showStep("whatsapp");
         else await finish(sessionUser, sessionProfile);
       } catch (err) {
         setAuthError(err.message || "No se pudo activar la huella. Puedes continuar sin ella.");
@@ -340,13 +377,20 @@ export function runAuthGate() {
       else await finish(sessionUser, sessionProfile);
     });
 
+    document.getElementById("authWaCancel").addEventListener("click", async () => {
+      if (!sessionUser) {
+        showStep("form");
+        return;
+      }
+      await abortIncompleteRegistration(sessionUser, sessionProfile);
+    });
     document.getElementById("authJoinWa").addEventListener("click", () => {
       window.open(WHATSAPP_GROUP_LINK, "_blank", "noopener");
       document.getElementById("authWaDone").disabled = false;
     });
     document.getElementById("authWaDone").addEventListener("click", async () => {
       if (!sessionUser) return;
-      const next = { ...sessionProfile, joinedWhatsapp: true };
+      const next = { ...sessionProfile, joinedWhatsapp: true, registrationComplete: true };
       await setDoc(doc(firestore, "users", sessionUser.uid), next, { merge: true });
       sessionProfile = next;
       await finish(sessionUser, sessionProfile);

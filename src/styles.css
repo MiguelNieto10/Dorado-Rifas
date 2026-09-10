@@ -512,7 +512,10 @@
     padding:28px 24px 26px; box-shadow:var(--shadow-pop);
   }
   .auth-brand{display:flex; flex-direction:column; align-items:center; margin-bottom:14px;}
-  .auth-logo{width:min(240px, 78%); height:auto; display:block; object-fit:contain;}
+  .auth-logo{
+    width:min(240px, 78%); height:auto; display:block; object-fit:contain;
+    background:transparent; mix-blend-mode:normal;
+  }
   .auth-card h2{font-size:1.7rem; margin-bottom:8px;}
   .auth-lead{color:var(--text-dim); font-size:0.92rem; margin-bottom:18px;}
   .auth-tabs{display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap;}
