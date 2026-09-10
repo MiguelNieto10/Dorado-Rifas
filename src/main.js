@@ -141,11 +141,19 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     });
   }
 
-  // Crea un cartón "en blanco": sin números vendidos.
+  const BOARD_LIVE_GEN = 3;
+
+  // Crea un tablero en blanco: sin números vendidos.
   function freshCard(value){
     const numbers = {};
     for(let i=0;i<100;i++) numbers[pad2(i)] = null;
-    return { value, numbers, sold:0, status:'open', countdownEndsAt:null, spinEndsAt:null, pendingWinner:null, history:[], lastDrawDate:null, drawCollected:null };
+    return { value, numbers, sold:0, status:'open', countdownEndsAt:null, spinEndsAt:null, pendingWinner:null, history:[], lastDrawDate:null, drawCollected:null, boardGen: BOARD_LIVE_GEN };
+  }
+
+  function emptyLiveBoard(value, history){
+    const card = freshCard(value);
+    card.history = history || [];
+    return card;
   }
 
   // Crea un cartón ya parcialmente lleno, solo para que la app
@@ -170,10 +178,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
   function seedWallet(){
     return {
-      balance: 45000,
-      activity: [
-        { id:'seed1', kind:'recarga', desc:'Recarga inicial de saldo', amount:45000, ts:Date.now() - 1000*60*60*30 }
-      ]
+      balance: 0,
+      activity: []
     };
   }
 
@@ -253,7 +259,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
       if(currentView === 'wallet') renderWalletView();
     }, ()=>{ /* si falla la lectura, seguimos con el último estado conocido */ });
 
-    const seeds = { 2000:41, 5000:78, 10000:12, 20000:0, 50000:55, 100000:3 };
     CARD_VALUES.forEach((value)=>{
       db.doc('cards/'+value).onSnapshot((snap)=>{
         if(snap.exists){
@@ -270,18 +275,16 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
           // editable, nunca sobre el objeto que entrega la base de
           // datos directamente.
           cardsCache[value] = JSON.parse(JSON.stringify(snap.data()));
-          // "Sanamos" datos guardados por una versión anterior de la
-          // app: hoy solo existen dos estados posibles ('open' y
-          // 'drawing'). Cualquier otro valor guardado antes (como el
-          // viejo estado intermedio de cuenta regresiva) se trata
-          // como cartón abierto normal, para que nunca quede
-          // "atascado" sin poder venderse ni sortearse.
           if(cardsCache[value].status !== 'drawing' && cardsCache[value].status !== 'revealed'){
             cardsCache[value].status = 'open';
           }
+          if(cardsCache[value].boardGen !== BOARD_LIVE_GEN && cardsCache[value].status === 'open'){
+            const cleared = emptyLiveBoard(value, cardsCache[value].history);
+            cardsCache[value] = cleared;
+            db.doc('cards/'+value).set(cleared).catch(()=>{});
+          }
         } else {
-          const userNums = value===5000 ? ['07','42'] : [];
-          const fresh = seedCard(value, seeds[value]||0, userNums);
+          const fresh = emptyLiveBoard(value, []);
           cardsCache[value] = fresh;
           db.doc('cards/'+value).set(fresh).catch(()=>{});
         }
@@ -300,12 +303,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   }
 
   function seedLocalIfEmpty(){
-    const seeds = { 2000:41, 5000:78, 10000:12, 20000:0, 50000:55, 100000:3 };
     CARD_VALUES.forEach((value)=>{
-      if(!cardsCache[value]){
-        const userNums = value===5000 ? ['07','42'] : [];
-        cardsCache[value] = seedCard(value, seeds[value]||0, userNums);
-      }
+      if(!cardsCache[value]) cardsCache[value] = emptyLiveBoard(value, []);
     });
   }
 

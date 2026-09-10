@@ -307,6 +307,10 @@
   .selection-bar .k{font-size:0.68rem; color:var(--text-faint); letter-spacing:0.06em; text-transform:uppercase; display:block;}
   .selection-bar .v{font-family:var(--font-mono); font-weight:700; font-size:1.15rem; color:var(--gold-bright);}
 
+  .btn-wa{display:inline-flex; align-items:center; justify-content:center; gap:8px;}
+  .wa-icon{width:1.15em; height:1.15em; flex-shrink:0;}
+  .admin-only-block{display:none !important;}
+  body.is-admin .admin-only-block{display:flex !important;}
   .demo-tool{
     margin-top:18px; padding:14px 16px; border:1px dashed var(--border); border-radius:var(--radius-m);
     background:repeating-linear-gradient(135deg, rgba(255,255,255,0.015) 0 10px, transparent 10px 20px);
