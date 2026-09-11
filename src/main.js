@@ -140,6 +140,9 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   function startNextQueuedBoard(){
     const { date, hour } = bogotaStamp();
     if(hour < DRAW_HOUR_BOGOTA) return;
+    // En vivo solo el admin (o el cron) elige el ganador. Si cada
+    // jugador arrancara el sorteo, saldrían números distintos.
+    if(usingDb && !isAdmin) return;
     const value = nextQueuedBoard(date);
     if(value == null) return;
     startCountdown(cardsCache[value], false);
@@ -818,7 +821,9 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     const toFill = available.sort(()=>Math.random()-0.5).slice(0, Math.min(count, available.length));
     toFill.forEach(n=>{ card.numbers[n] = Object.assign(randomBot(), { confirmed:true, pending:false }); });
     recountSold(card);
-    if(count === Infinity && paidNumbers(card).length > 0){ startCountdown(card, true); }
+    if(count === Infinity && paidNumbers(card).length > 0 && bogotaStamp().hour < 20){
+      startCountdown(card, true);
+    }
     saveCard(value);
     toast(toFill.length + ' jugadores simulados se unieron al tablero ' + fmt(value));
   }
@@ -836,9 +841,10 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     if(!force){
       card.lastDrawDate = bogotaStamp().date;
     }
+    hideDrawAlertBanner();
     card.status = 'drawing';
     card.spinEndsAt = Date.now() + SPIN_MS;
-    card.pendingWinner = pool[Math.floor(Math.random()*pool.length)];
+    card.pendingWinner = pad2(pool[Math.floor(Math.random()*pool.length)]);
     card.drawCollected = pool.length * card.value;
     card.drawId = card.value + '-' + Date.now();
     card.drawSettled = false;
@@ -863,6 +869,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   let revealCloseTimer = null;
   function runDrawAnimation(card){
     if(!shouldWatchDraw(card)) return;
+    hideDrawAlertBanner();
     const overlayEl = document.getElementById('drawOverlay');
     if(overlayEl && !overlayEl.hidden && overlayEl.dataset.cardValue && overlayEl.dataset.cardValue !== String(card.value)){
       return;
@@ -1377,7 +1384,11 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         simulatePlayers(openCardValue, count);
         return;
       }
-      if(t.closest('#resetCardBtn')){ forceResetCard(openCardValue); return; }
+      if(t.closest('#resetCardBtn')){
+        if(!window.confirm('Esto borra los números verdes de este tablero. ¿Seguro?')) return;
+        forceResetCard(openCardValue);
+        return;
+      }
 
       if(t.closest('#depositBtn')){
         document.getElementById('depositInput').value = '';

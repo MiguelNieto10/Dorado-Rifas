@@ -529,7 +529,7 @@
      ============================================================ */
   .draw-overlay{
     position:fixed; inset:0; background:radial-gradient(ellipse at 50% 30%, #191305 0%, #060608 72%);
-    z-index:90; display:flex; align-items:center; justify-content:center; padding:20px;
+    z-index:110; display:flex; align-items:center; justify-content:center; padding:20px;
     overflow:hidden;
   }
   .draw-overlay.is-win{

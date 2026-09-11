@@ -101,7 +101,7 @@ export function startDraw(card, force) {
   if (card.status === "drawing" && card.pendingWinner) return { ok: true, already: true };
   card.status = "drawing";
   card.spinEndsAt = Date.now() + SPIN_MS;
-  card.pendingWinner = pool[randomInt(pool.length)];
+  card.pendingWinner = pad2(pool[randomInt(pool.length)]);
   card.drawCollected = pool.length * card.value;
   card.drawId = card.value + "-" + Date.now();
   card.drawSettled = false;
