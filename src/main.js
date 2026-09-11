@@ -1,7 +1,7 @@
 import { connectFirestore } from "./db.js";
 import { runAuthGate, signOutSession, isAdminEntry, WHATSAPP_GROUP_LINK } from "./auth.js";
-import { createDrawRecorder } from "./drawRecord.js";
-import { bogotaDateKey } from "./drawStore.js";
+import { createDrawRecorder, winnerPosterFile } from "./drawRecord.js";
+import { bogotaDateKey, saveLocalDrawMedia, archiveDrawVideo } from "./drawStore.js";
 import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
 /* ================================================================
@@ -983,6 +983,33 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     requestAnimationFrame(frame);
   }
 
+  async function keepDrawMedia(drawKey, clip, blob, card, prize){
+    try{
+      let file = null;
+      if(blob && blob.size){
+        const ext = (blob.type || '').indexOf('png') >= 0 ? 'png' : ((blob.type || '').indexOf('mp4') >= 0 ? 'mp4' : 'webm');
+        file = new File([blob], 'sorteo-dorado-' + (card && card.pendingWinner ? card.pendingWinner : 'ganador') + '.' + ext, { type: blob.type || 'video/webm' });
+      }
+      if(!file) file = await winnerPosterFile(clip);
+      lastDrawFile = file;
+      await saveLocalDrawMedia(drawKey, file);
+      if(isAdmin && file){
+        archiveDrawVideo(file, {
+          drawId: drawKey,
+          dateKey: bogotaDateKey(),
+          cardValue: card && card.value,
+          winningNumber: card && card.pendingWinner,
+          winnerName: clip && clip.name,
+          winnerCity: clip && clip.city,
+          prize,
+          ts: Date.now()
+        }).catch(()=>{});
+      }
+    }catch(e){
+      lastDrawFile = lastDrawFile || null;
+    }
+  }
+
   function finishDraw(card){
     if(!card || !card.pendingWinner) return;
     const winnerSlot = card.numbers[card.pendingWinner];
@@ -1067,14 +1094,16 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         setTimeout(()=>{
           clearInterval(hold);
           recorder.stop().then((blob)=>{
-            if(!blob){ lastDrawFile = null; return; }
-            const ext = blob.type.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
-            lastDrawFile = new File([blob], 'sorteo-dorado-' + card.pendingWinner + '.' + ext, { type: blob.type });
-          }).catch(()=>{ lastDrawFile = null; });
+            keepDrawMedia(drawKey, clip, blob, card, prize);
+          }).catch(()=>{
+            keepDrawMedia(drawKey, clip, null, card, prize);
+          });
         }, 2800);
       }catch(e){
-        lastDrawFile = null;
+        keepDrawMedia(drawKey, clip, null, card, prize);
       }
+    } else {
+      keepDrawMedia(drawKey, clip, null, card, prize);
     }
 
     const overlay = document.getElementById('drawOverlay');

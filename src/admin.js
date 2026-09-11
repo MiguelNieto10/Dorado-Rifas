@@ -6,7 +6,8 @@ import { getAuth } from "firebase/auth";
 import { getFirestore, collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { getFirebaseApp } from "./db.js";
 import { slugFromUsername, isAdminAccount, WHATSAPP_GROUP_LINK } from "./auth.js";
-import { isWithinVideoRetention, pruneExpiredDrawArchives } from "./drawStore.js";
+import { isWithinVideoRetention, pruneExpiredDrawArchives, loadLocalDrawMedia } from "./drawStore.js";
+import { winnerPosterFile } from "./drawRecord.js";
 
 const CARD_VALUES = [2000, 5000, 10000, 20000, 50000, 100000];
 
@@ -301,7 +302,37 @@ function dateHeading(key) {
   return d.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
-function renderVideos(root, bundle, mode, dateStr) {
+function posterClip(d) {
+  return {
+    kicker: "Tablero " + fmt(d.cardValue) + " · sorteo en vivo",
+    number: d.winningNumber,
+    name: d.winnerName,
+    city: d.winnerCity,
+    prize: fmt(d.prize),
+  };
+}
+
+async function evidenceFileForDraw(d) {
+  if (d.videoUrl) {
+    try {
+      const res = await fetch(d.videoUrl);
+      const blob = await res.blob();
+      const ext = (blob.type || "").indexOf("png") >= 0 ? "png" : (blob.type || "").indexOf("mp4") >= 0 ? "mp4" : "webm";
+      return new File([blob], "sorteo-" + (d.winningNumber || "dorado") + "." + ext, { type: blob.type || "video/webm" });
+    } catch {
+      /* sigue con el afiche */
+    }
+  }
+  const local = await loadLocalDrawMedia(d.id);
+  if (local) {
+    const type = local.type || "image/png";
+    const ext = type.indexOf("png") >= 0 ? "png" : type.indexOf("mp4") >= 0 ? "mp4" : "webm";
+    return local instanceof File ? local : new File([local], "sorteo-" + (d.winningNumber || "dorado") + "." + ext, { type });
+  }
+  return winnerPosterFile(posterClip(d));
+}
+
+async function renderVideos(root, bundle, mode, dateStr) {
   const draws = bundle.draws
     .filter((d) => isWithinVideoRetention(d.ts) && inRange(d.ts, mode, dateStr))
     .slice()
@@ -317,6 +348,17 @@ function renderVideos(root, bundle, mode, dateStr) {
     groups[key].push(d);
   });
   const keys = Object.keys(groups).sort().reverse();
+  const media = {};
+  await Promise.all(
+    draws.map(async (d) => {
+      try {
+        const file = await evidenceFileForDraw(d);
+        media[d.id] = { file, url: URL.createObjectURL(file), image: (file.type || "").indexOf("video") < 0 };
+      } catch {
+        media[d.id] = null;
+      }
+    })
+  );
   root.innerHTML = keys
     .map((key) => {
       const cards = groups[key]
@@ -324,9 +366,12 @@ function renderVideos(root, bundle, mode, dateStr) {
           const when = d.ts
             ? new Date(d.ts).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })
             : "—";
-          const video = d.videoUrl
-            ? '<video class="admin-video" controls playsinline src="' + escapeHtml(d.videoUrl) + '"></video>'
-            : '<div class="empty-note">Video aún no disponible. El archivo se guarda al terminar el sorteo.</div>';
+          const m = media[d.id];
+          const video = m
+            ? m.image
+              ? '<img class="admin-video" alt="Ganador del sorteo" src="' + escapeHtml(m.url) + '">'
+              : '<video class="admin-video" controls playsinline src="' + escapeHtml(m.url) + '"></video>'
+            : '<div class="empty-note">No se pudo armar la evidencia de este sorteo.</div>';
           return (
             '<article class="admin-video-card">' +
               video +
@@ -347,14 +392,16 @@ function renderVideos(root, bundle, mode, dateStr) {
                 escapeHtml(when) +
                 "</p>" +
                 '<div class="admin-video-actions">' +
-                  (d.videoUrl
+                  (m
                     ? '<a class="btn btn-outline btn-sm" href="' +
-                      escapeHtml(d.videoUrl) +
-                      '" download target="_blank" rel="noopener">Descargar</a>' +
-                      '<button class="btn btn-gold btn-sm" type="button" data-share-video="' +
-                      escapeHtml(d.id || "") +
-                      '">Enviar al grupo</button>'
+                      escapeHtml(m.url) +
+                      '" download="sorteo-' +
+                      escapeHtml(d.winningNumber || "dorado") +
+                      '">Descargar</a>'
                     : "") +
+                  '<button class="btn btn-gold btn-sm" type="button" data-share-video="' +
+                  escapeHtml(d.id || "") +
+                  '">Enviar al grupo</button>' +
                 "</div>" +
               "</div>" +
             "</article>"
@@ -468,7 +515,7 @@ export async function refreshAdminViews(cardsCache) {
   if (resetEl) renderResets(resetEl, cachedBundle.resets || []);
   renderUsers(usersEl, rows);
   renderCaja(cajaEl, cachedBundle, mode, dateStr);
-  renderVideos(videosEl, cachedBundle, mode, dateStr);
+  await renderVideos(videosEl, cachedBundle, mode, dateStr);
 }
 
 export function bindAdminFilters(getCardsCache) {
@@ -545,30 +592,32 @@ export function bindAdminFilters(getCardsCache) {
 
 async function shareDrawEvidence(d) {
   const text =
-    "🏆 *Dorado Rifas* — Evidencia del sorteo\n" +
-    "Tablero: " + fmt(d.cardValue) + "\n" +
+    "🏆 *Dorado Rifas* — Sorteo oficial\n" +
+    "Tablero de juego: " + fmt(d.cardValue) + "\n" +
     "Número ganador: *" + (d.winningNumber || "—") + "*\n" +
     "Ganador(a): " + (d.winnerName || "—") + "\n" +
     "Ciudad: " + (d.winnerCity || "—") + "\n" +
-    "Premio (50%): " + fmt(d.prize) + "\n" +
-    "Fecha: " + (d.ts ? new Date(d.ts).toLocaleString("es-CO") : "—");
+    "Premio (50% de lo recaudado): " + fmt(d.prize) + "\n" +
+    "Fecha: " + (d.ts ? new Date(d.ts).toLocaleString("es-CO") : "—") + "\n\n" +
+    "Únete y juega: https://dorado-rifas.vercel.app";
   try {
     const payload = { title: "Dorado Rifas", text };
-    if (d.videoUrl) {
-      const res = await fetch(d.videoUrl);
-      const blob = await res.blob();
-      const ext = (blob.type || "").indexOf("mp4") >= 0 ? "mp4" : "webm";
-      const file = new File([blob], "sorteo-" + (d.winningNumber || "dorado") + "." + ext, { type: blob.type || "video/webm" });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        payload.files = [file];
-      }
+    const file = await evidenceFileForDraw(d);
+    if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+      payload.files = [file];
     }
     if (navigator.share) {
       await navigator.share(payload);
       return;
     }
+    if (file) {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
+      a.click();
+    }
   } catch {
-    /* canceló o el celular no adjuntó el video */
+    /* canceló o el celular no adjuntó el archivo */
   }
   try {
     navigator.clipboard.writeText(text);

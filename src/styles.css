@@ -176,7 +176,7 @@
   @media (min-width:720px){
     .admin-video-card{grid-template-columns:minmax(180px,280px) 1fr; align-items:start;}
   }
-  .admin-video{width:100%; border-radius:var(--radius-s); background:#000; max-height:320px;}
+  .admin-video{width:100%; border-radius:var(--radius-s); background:#000; max-height:320px; object-fit:cover;}
   .admin-video-meta p{color:var(--text-dim); font-size:0.88rem; margin-top:4px;}
   .admin-video-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;}
   .wallet-chip{

@@ -1,22 +1,20 @@
 /**
- * Graba el sorteo en un canvas (misma cuenta y número que se ve
- * en pantalla) para compartirlo. WhatsApp no deja a una web pegar
- * un video sola en un grupo: el usuario elige el chat al compartir.
+ * Graba el sorteo en un canvas para compartirlo.
+ * En muchos celulares Android el video no se puede grabar;
+ * en ese caso se entrega una imagen del ganador (sí se puede enviar).
  */
-export function createDrawRecorder() {
+function pickMime() {
+  if (typeof MediaRecorder === "undefined") return "";
+  const types = ["video/webm;codecs=vp8", "video/webm", "video/mp4", "video/webm;codecs=vp9"];
+  return types.find((t) => MediaRecorder.isTypeSupported(t)) || "";
+}
+
+function makeCanvas() {
   const canvas = document.createElement("canvas");
   canvas.width = 720;
   canvas.height = 1280;
   const ctx = canvas.getContext("2d");
-  const chunks = [];
-  let recorder = null;
-  const mime = pickMime();
-
-  function pickMime() {
-    if (typeof MediaRecorder === "undefined") return "";
-    const types = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm", "video/mp4"];
-    return types.find((t) => MediaRecorder.isTypeSupported(t)) || "";
-  }
+  let logoImg = null;
 
   function bg() {
     const g = ctx.createRadialGradient(360, 380, 40, 360, 500, 700);
@@ -33,7 +31,6 @@ export function createDrawRecorder() {
     ctx.fillText(text, 360, 230);
   }
 
-  let logoImg = null;
   function brand() {
     if (!logoImg) {
       logoImg = new Image();
@@ -51,22 +48,69 @@ export function createDrawRecorder() {
     ctx.fillText("Dorado", 360, 100);
   }
 
+  function paintWinner({ kicker, number, name, city, prize }) {
+    bg();
+    brand();
+    title(kicker || "Sorteo en vivo");
+    ctx.fillStyle = "#e8c877";
+    ctx.font = "600 28px 'Cormorant Garamond', Georgia, serif";
+    ctx.fillText("¡Tenemos ganador!", 360, 280);
+    ctx.font = "700 140px 'IBM Plex Mono', monospace";
+    ctx.fillText(String(number || "—"), 360, 480);
+    ctx.font = "600 44px 'Cormorant Garamond', Georgia, serif";
+    ctx.fillStyle = "#efe8d8";
+    ctx.fillText(String(name || "—"), 360, 580);
+    ctx.fillStyle = "#a89e8c";
+    ctx.font = "500 28px Jost, sans-serif";
+    ctx.fillText(String(city || "—"), 360, 640);
+    ctx.fillStyle = "#e8c877";
+    ctx.font = "700 56px 'IBM Plex Mono', monospace";
+    ctx.fillText(String(prize || ""), 360, 760);
+    ctx.fillStyle = "#a89e8c";
+    ctx.font = "500 24px Jost, sans-serif";
+    ctx.fillText("Premio: 50% de lo recaudado", 360, 860);
+  }
+
+  function loadLogo() {
+    if (!logoImg) {
+      logoImg = new Image();
+      logoImg.src = "/logo.png?v=7";
+    }
+    return new Promise((resolve) => {
+      if (logoImg.complete && logoImg.naturalWidth) {
+        resolve();
+        return;
+      }
+      logoImg.onload = () => resolve();
+      logoImg.onerror = () => resolve();
+      setTimeout(resolve, 800);
+    });
+  }
+
+  return { canvas, ctx, bg, brand, title, paintWinner, ensureLogo: brand, loadLogo };
+}
+
+export function createDrawRecorder() {
+  const { canvas, ctx, bg, brand, title, paintWinner, ensureLogo } = makeCanvas();
+  const chunks = [];
+  let recorder = null;
+  const mime = pickMime();
+
   return {
     start() {
-      if (!mime) return false;
-      if (!logoImg) {
-        logoImg = new Image();
-        logoImg.src = "/logo.png?v=7";
-      }
+      ensureLogo();
+      bg();
+      brand();
+      if (typeof MediaRecorder === "undefined" || typeof canvas.captureStream !== "function") return false;
       try {
         chunks.length = 0;
         const stream = canvas.captureStream(24);
-        recorder = new MediaRecorder(stream, { mimeType: mime });
+        recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
         recorder.ondataavailable = (e) => {
           if (e.data && e.data.size) chunks.push(e.data);
         };
         recorder.start(250);
-        return true;
+        return recorder.state === "recording";
       } catch {
         recorder = null;
         return false;
@@ -86,27 +130,8 @@ export function createDrawRecorder() {
       ctx.font = "500 26px Jost, sans-serif";
       ctx.fillText("Girando… el ganador aparece en 0", 360, 820);
     },
-    winner({ kicker, number, name, city, prize }) {
-      bg();
-      brand();
-      title(kicker);
-      ctx.fillStyle = "#e8c877";
-      ctx.font = "600 28px 'Cormorant Garamond', Georgia, serif";
-      ctx.fillText("¡Tenemos ganador!", 360, 280);
-      ctx.font = "700 140px 'IBM Plex Mono', monospace";
-      ctx.fillText(String(number), 360, 480);
-      ctx.font = "600 44px 'Cormorant Garamond', Georgia, serif";
-      ctx.fillStyle = "#efe8d8";
-      ctx.fillText(name, 360, 580);
-      ctx.fillStyle = "#a89e8c";
-      ctx.font = "500 28px Jost, sans-serif";
-      ctx.fillText(city, 360, 640);
-      ctx.fillStyle = "#e8c877";
-      ctx.font = "700 56px 'IBM Plex Mono', monospace";
-      ctx.fillText(prize, 360, 760);
-      ctx.fillStyle = "#a89e8c";
-      ctx.font = "500 24px Jost, sans-serif";
-      ctx.fillText("El tablero se habilita de nuevo", 360, 860);
+    winner(clip) {
+      paintWinner(clip);
     },
     stop() {
       return new Promise((resolve) => {
@@ -115,7 +140,7 @@ export function createDrawRecorder() {
           return;
         }
         recorder.onstop = () => {
-          resolve(chunks.length ? new Blob(chunks, { type: mime }) : null);
+          resolve(chunks.length ? new Blob(chunks, { type: recorder.mimeType || mime || "video/webm" }) : null);
         };
         try {
           recorder.stop();
@@ -125,4 +150,23 @@ export function createDrawRecorder() {
       });
     },
   };
+}
+
+export async function winnerPosterFile(clip) {
+  const { canvas, paintWinner, loadLogo } = makeCanvas();
+  await loadLogo();
+  paintWinner(clip);
+  return new Promise((resolve) => {
+    const finish = (blob) => {
+      const file = new File([blob || new Blob()], "sorteo-dorado-" + (clip && clip.number ? clip.number : "ganador") + ".png", {
+        type: "image/png",
+      });
+      resolve(file);
+    };
+    if (canvas.toBlob) {
+      canvas.toBlob((blob) => finish(blob), "image/png");
+    } else {
+      fetch(canvas.toDataURL("image/png")).then((r) => r.blob()).then(finish).catch(() => finish(null));
+    }
+  });
 }
