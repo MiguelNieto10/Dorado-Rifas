@@ -396,7 +396,10 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         // comentario), que revisa si el aviso de sorteo está realmente
         // visible en pantalla en vez de confiar ciegamente en la
         // bandera en memoria.
+        if(isAdmin && currentView === 'admin-users') refreshAdminViews(cardsCache);
         if(isDrawLive(cardsCache[value])){
+          runDrawAnimation(cardsCache[value]);
+        }
           runDrawAnimation(cardsCache[value]);
         }
       }, ()=>{});

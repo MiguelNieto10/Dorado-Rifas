@@ -30,25 +30,24 @@ let pickedUserYear = 0;
 let pickedUserMonth = 0;
 
 function bogotaNowParts() {
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Bogota",
-    year: "numeric",
-    month: "2-digit",
-  });
-  const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p) => [p.type, p.value]));
-  return { year: parseInt(parts.year, 10), month: parseInt(parts.month, 10) };
+  try {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
+  } catch (e) {
+    return { year: 2026, month: 9 };
+  }
 }
 
 function bogotaCreatedParts(ts) {
   const t = Number(ts) || 0;
   if (!t) return null;
-  const fmt = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Bogota",
-    year: "numeric",
-    month: "2-digit",
-  });
-  const parts = Object.fromEntries(fmt.formatToParts(new Date(t)).map((p) => [p.type, p.value]));
-  return { year: parseInt(parts.year, 10), month: parseInt(parts.month, 10) };
+  try {
+    const d = new Date(t);
+    if (isNaN(d.getTime())) return null;
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
+  } catch (e) {
+    return null;
+  }
 }
 
 function isKeptAdminRow(u) {
@@ -409,9 +408,13 @@ function renderUsers(listEl, rows) {
   const now = bogotaNowParts();
   const players = (rows || []).filter((u) => !isKeptAdminRow(u));
   const admins = (rows || []).filter((u) => isKeptAdminRow(u));
-  const years = new Set(players.map((u) => bogotaCreatedParts(u.createdAt)?.year).filter(Boolean));
+  const years = new Set();
+  players.forEach((u) => {
+    const p = bogotaCreatedParts(u.createdAt);
+    if (p && p.year) years.add(p.year);
+  });
   years.add(now.year);
-  const yearList = [...years].sort((a, b) => b - a);
+  const yearList = Array.from(years).sort((a, b) => b - a);
   let year = pickedUserYear || now.year;
   if (!yearList.includes(year)) year = yearList[0] || now.year;
   let month = pickedUserMonth || now.month;
@@ -714,19 +717,13 @@ export async function refreshAdminViews(cardsCache) {
   const countEl = document.getElementById("adminUserCount");
   if (!usersEl || !cajaEl || !videosEl) return;
 
-  usersEl.innerHTML = '<div class="empty-note">Cargando…</div>';
-  if (resetEl) resetEl.innerHTML = "";
-  cajaEl.innerHTML = '<div class="empty-note">Cargando…</div>';
-  videosEl.innerHTML = '<div class="empty-note">Cargando…</div>';
+  const mode = document.getElementById("adminRange") ? document.getElementById("adminRange").value : "all";
+  const dateStr = document.getElementById("adminDate") ? document.getElementById("adminDate").value : "";
 
-  try {
-    cachedBundle = await loadAdminBundle(cardsCache);
-    const mode = document.getElementById("adminRange")?.value || "all";
-    const dateStr = document.getElementById("adminDate")?.value || "";
-
+  function paint(bundle) {
     const keepAdminSlug = KEEP_ADMIN_SLUG;
     let keptAdmin = false;
-    const rows = (cachedBundle.users || [])
+    const rows = (bundle.users || [])
       .filter((u) => {
         const slug = slugFromUsername(u.username);
         const admin = isAdminAccount(u, u.username, u.email) || u.role === "admin";
@@ -735,39 +732,57 @@ export async function refreshAdminViews(cardsCache) {
         keptAdmin = true;
         return true;
       })
-      .map((u) => summarizeUser(u, u.id || u.uid, cachedBundle, mode, dateStr))
+      .map((u) => summarizeUser(u, u.id || u.uid, bundle, mode, dateStr))
       .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || String(a.username || "").localeCompare(String(b.username || ""), "es"));
-
     cachedUserRows = rows;
     if (countEl) countEl.textContent = String(rows.filter((u) => !isKeptAdminRow(u)).length);
+    renderUsers(usersEl, rows);
+  }
+
+  const quick = {
+    users: mergeUserLists(
+      cachedBundle && cachedBundle.users,
+      usersFromCards(cardsCache),
+      (function () {
+        try {
+          const app = getFirebaseApp();
+          const user = app ? getAuth(app).currentUser : null;
+          if (!user) return [];
+          return [
+            {
+              id: user.uid,
+              uid: user.uid,
+              username: user.displayName || "Miguel_NP_10",
+              email: user.email || "",
+              phone: "",
+              role: "admin",
+              createdAt: 0,
+            },
+          ];
+        } catch (e) {
+          return [];
+        }
+      })()
+    ),
+    plays: (cachedBundle && cachedBundle.plays) || [],
+    draws: (cachedBundle && cachedBundle.draws) || [],
+    resets: (cachedBundle && cachedBundle.resets) || [],
+    cardsCache: cardsCache || {},
+  };
+  paint(quick);
+
+  try {
+    cachedBundle = await loadAdminBundle(cardsCache);
     if (resetEl) renderResets(resetEl, cachedBundle.resets || []);
-    try {
-      renderUsers(usersEl, rows);
-    } catch (err) {
-      console.error(err);
-      usersEl.innerHTML = '<div class="empty-note">La lista tardó. Pulsa Actualizar. Las cuentas no se borraron.</div>';
-    }
-    try {
-      renderCaja(cajaEl, cachedBundle, mode, dateStr);
-    } catch (err) {
-      console.error(err);
-      cajaEl.innerHTML = '<div class="empty-note">No se pudo armar la caja. Pulsa Actualizar.</div>';
-    }
-    renderVideos(videosEl, cachedBundle, mode, dateStr).catch(() => {
-      videosEl.innerHTML = '<div class="empty-note">Los sorteos se cargan aparte. Las cuentas no se tocan.</div>';
-    });
+    paint(cachedBundle);
+    renderCaja(cajaEl, cachedBundle, mode, dateStr);
+    renderVideos(videosEl, cachedBundle, mode, dateStr).catch(function () {});
   } catch (err) {
     console.error(err);
+    paint(quick);
     try {
-      const fallback = mergeUserLists(usersFromCards(cardsCache));
-      const mode = document.getElementById("adminRange")?.value || "all";
-      const dateStr = document.getElementById("adminDate")?.value || "";
-      const rows = fallback.map((u) => summarizeUser(u, u.id || u.uid, { plays: [], draws: [], cardsCache: cardsCache || {} }, mode, dateStr));
-      cachedUserRows = rows;
-      renderUsers(usersEl, rows);
-    } catch {
-      usersEl.innerHTML = '<div class="empty-note">Pulsa Actualizar. Las cuentas no se borraron.</div>';
-    }
+      renderCaja(cajaEl, quick, mode, dateStr);
+    } catch (e) {}
   }
 }
 
