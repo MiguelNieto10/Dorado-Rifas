@@ -34,11 +34,14 @@ export async function pruneExpiredDrawArchives() {
   const app = getFirebaseApp();
   if (!app) return 0;
   const firestore = getFirestore(app);
-  const storage = getStorage(app);
   const cutoff = retentionCutoffTs();
   let removed = 0;
   try {
-    const snap = await getDocs(collection(firestore, "draws"));
+    const snap = await Promise.race([
+      getDocs(collection(firestore, "draws")),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
+    ]);
+    const storage = getStorage(app);
     for (const item of snap.docs) {
       const data = item.data() || {};
       if ((Number(data.ts) || 0) >= cutoff) continue;

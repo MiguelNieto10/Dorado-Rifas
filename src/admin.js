@@ -93,7 +93,10 @@ function inRange(ts, mode, dateStr) {
 
 async function readCollection(firestore, name) {
   try {
-    const snap = await getDocs(collection(firestore, name));
+    const snap = await Promise.race([
+      getDocs(collection(firestore, name)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 12000)),
+    ]);
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   } catch {
     return [];
@@ -601,7 +604,7 @@ export async function refreshAdminViews(cardsCache) {
   cajaEl.innerHTML = '<div class="empty-note">Cargando…</div>';
   videosEl.innerHTML = '<div class="empty-note">Cargando…</div>';
 
-  await pruneExpiredDrawArchives();
+  pruneExpiredDrawArchives().catch(() => {});
   cachedBundle = await loadAdminBundle(cardsCache);
   const mode = document.getElementById("adminRange")?.value || "all";
   const dateStr = document.getElementById("adminDate")?.value || "";
