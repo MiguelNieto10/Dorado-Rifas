@@ -6,7 +6,7 @@ import { getAuth } from "firebase/auth";
 import { getFirestore, collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { getFirebaseApp } from "./db.js";
 import { slugFromUsername, isAdminAccount, WHATSAPP_GROUP_LINK } from "./auth.js";
-import { isWithinVideoRetention, pruneExpiredDrawArchives, loadLocalDrawMedia } from "./drawStore.js";
+import { isWithinVideoRetention, loadLocalDrawMedia } from "./drawStore.js";
 import { winnerPosterFile } from "./drawRecord.js";
 
 const KEEP_ADMIN_SLUG = "miguel_np_10";
@@ -133,18 +133,42 @@ function activeCardsForUser(cardsCache, uid, username) {
   });
 }
 
+async function loadUsersViaApi() {
+  try {
+    const app = getFirebaseApp();
+    if (!app) return null;
+    const user = getAuth(app).currentUser;
+    if (!user) return null;
+    const token = await Promise.race([
+      user.getIdToken(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
+    ]);
+    const res = await Promise.race([
+      fetch("/api/admin-users", { headers: { Authorization: "Bearer " + token } }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 12000)),
+    ]);
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => ({}));
+    return Array.isArray(data.users) ? data.users : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadAdminBundle(cardsCache) {
   const app = getFirebaseApp();
   if (!app) {
     return { users: [], plays: [], draws: [], resets: [], cardsCache: cardsCache || {} };
   }
   const firestore = getFirestore(app);
-  const [users, plays, draws, resets] = await Promise.all([
-    readCollection(firestore, "users"),
+  const fromApi = await loadUsersViaApi();
+  const [usersClient, plays, draws, resets] = await Promise.all([
+    fromApi ? Promise.resolve([]) : readCollection(firestore, "users"),
     readCollection(firestore, "plays"),
     readCollection(firestore, "draws"),
     readCollection(firestore, "passwordResets"),
   ]);
+  const users = fromApi && fromApi.length ? fromApi : usersClient;
   return { users, plays, draws, resets, cardsCache: cardsCache || {} };
 }
 
@@ -604,31 +628,39 @@ export async function refreshAdminViews(cardsCache) {
   cajaEl.innerHTML = '<div class="empty-note">Cargando…</div>';
   videosEl.innerHTML = '<div class="empty-note">Cargando…</div>';
 
-  pruneExpiredDrawArchives().catch(() => {});
-  cachedBundle = await loadAdminBundle(cardsCache);
-  const mode = document.getElementById("adminRange")?.value || "all";
-  const dateStr = document.getElementById("adminDate")?.value || "";
+  try {
+    cachedBundle = await loadAdminBundle(cardsCache);
+    const mode = document.getElementById("adminRange")?.value || "all";
+    const dateStr = document.getElementById("adminDate")?.value || "";
 
-  const keepAdminSlug = KEEP_ADMIN_SLUG;
-  let keptAdmin = false;
-  const rows = cachedBundle.users
-    .filter((u) => {
-      const slug = slugFromUsername(u.username);
-      const admin = isAdminAccount(u, u.username, u.email) || u.role === "admin";
-      if (!admin) return true;
-      if (slug !== keepAdminSlug || keptAdmin) return false;
-      keptAdmin = true;
-      return true;
-    })
-    .map((u) => summarizeUser(u, u.id || u.uid, cachedBundle, mode, dateStr))
-    .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || a.username.localeCompare(b.username, "es"));
+    const keepAdminSlug = KEEP_ADMIN_SLUG;
+    let keptAdmin = false;
+    const rows = cachedBundle.users
+      .filter((u) => {
+        const slug = slugFromUsername(u.username);
+        const admin = isAdminAccount(u, u.username, u.email) || u.role === "admin";
+        if (!admin) return true;
+        if (slug !== keepAdminSlug || keptAdmin) return false;
+        keptAdmin = true;
+        return true;
+      })
+      .map((u) => summarizeUser(u, u.id || u.uid, cachedBundle, mode, dateStr))
+      .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || a.username.localeCompare(b.username, "es"));
 
-  cachedUserRows = rows;
-  if (countEl) countEl.textContent = String(rows.filter((u) => !isKeptAdminRow(u)).length);
-  if (resetEl) renderResets(resetEl, cachedBundle.resets || []);
-  renderUsers(usersEl, rows);
-  renderCaja(cajaEl, cachedBundle, mode, dateStr);
-  await renderVideos(videosEl, cachedBundle, mode, dateStr);
+    cachedUserRows = rows;
+    if (countEl) countEl.textContent = String(rows.filter((u) => !isKeptAdminRow(u)).length);
+    if (resetEl) renderResets(resetEl, cachedBundle.resets || []);
+    renderUsers(usersEl, rows);
+    renderCaja(cajaEl, cachedBundle, mode, dateStr);
+    renderVideos(videosEl, cachedBundle, mode, dateStr).catch(() => {
+      videosEl.innerHTML = '<div class="empty-note">Los sorteos se cargan aparte. Las cuentas no se tocan.</div>';
+    });
+  } catch (err) {
+    console.error(err);
+    usersEl.innerHTML = '<div class="empty-note">No se pudo cargar la lista. Pulsa Actualizar. Las cuentas no se borraron.</div>';
+    cajaEl.innerHTML = '<div class="empty-note">No se pudo cargar la caja. Pulsa Actualizar.</div>';
+    videosEl.innerHTML = '<div class="empty-note">No se pudieron cargar los sorteos.</div>';
+  }
 }
 
 export function bindAdminFilters(getCardsCache) {
