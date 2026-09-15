@@ -220,27 +220,33 @@ function renderUsers(listEl, rows) {
       const wins = u.winDetails
         .map((d) => fmt(d.prize) + " (" + fmt(d.cardValue) + ")")
         .join(" · ") || "—";
+      const when = u.createdAt
+        ? new Date(u.createdAt).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })
+        : "—";
       return (
-        '<article class="admin-user">' +
-          '<div class="admin-user-top">' +
+        '<details class="admin-user">' +
+          '<summary class="admin-user-top">' +
             '<span class="admin-idx">' + (i + 1) + "</span>" +
             '<div><div class="admin-user-name">' + escapeHtml(u.username) + "</div>" +
-            '<div class="admin-user-meta">Celular ' + escapeHtml(u.phone) + (u.email ? " · " + escapeHtml(u.email) : "") + "</div></div>" +
+            '<div class="admin-user-meta">Celular ' + escapeHtml(u.phone) + (u.email ? " · " + escapeHtml(u.email) : "") + " · Llegó " + escapeHtml(when) + "</div></div>" +
             active +
+            '<span class="admin-user-chevron" aria-hidden="true">▾</span>' +
+          "</summary>" +
+          '<div class="admin-user-body">' +
+            '<div class="admin-user-grid">' +
+              "<div><span class=\"k\">Tableros jugados</span><span class=\"v\">" + u.cardsPlayed + "</span></div>" +
+              "<div><span class=\"k\">Compras</span><span class=\"v\">" + u.purchases + "</span></div>" +
+              "<div><span class=\"k\">Números pagos</span><span class=\"v\">" + u.numbersPaid + "</span></div>" +
+              "<div><span class=\"k\">Veces que ganó</span><span class=\"v\">" + u.wins + "</span></div>" +
+              "<div><span class=\"k\">Cifras ganadas</span><span class=\"v\">" + fmt(u.wonAmount) + "</span></div>" +
+              "<div><span class=\"k\">Pagó</span><span class=\"v\">" + fmt(u.spent) + "</span></div>" +
+            "</div>" +
+            '<p class="admin-win-line">Premios: ' + escapeHtml(wins) + "</p>" +
+            (u.email
+              ? '<button class="btn btn-outline btn-sm" type="button" data-resend-welcome="' + escapeHtml(u.email) + '" data-resend-name="' + escapeHtml(u.username) + '">Reenviar correo de bienvenida</button>'
+              : "") +
           "</div>" +
-          '<div class="admin-user-grid">' +
-            "<div><span class=\"k\">Tableros jugados</span><span class=\"v\">" + u.cardsPlayed + "</span></div>" +
-            "<div><span class=\"k\">Compras</span><span class=\"v\">" + u.purchases + "</span></div>" +
-            "<div><span class=\"k\">Números pagos</span><span class=\"v\">" + u.numbersPaid + "</span></div>" +
-            "<div><span class=\"k\">Veces que ganó</span><span class=\"v\">" + u.wins + "</span></div>" +
-            "<div><span class=\"k\">Cifras ganadas</span><span class=\"v\">" + fmt(u.wonAmount) + "</span></div>" +
-            "<div><span class=\"k\">Pagó</span><span class=\"v\">" + fmt(u.spent) + "</span></div>" +
-          "</div>" +
-          '<p class="admin-win-line">Premios: ' + escapeHtml(wins) + "</p>" +
-          (u.email
-            ? '<button class="btn btn-outline btn-sm" type="button" data-resend-welcome="' + escapeHtml(u.email) + '" data-resend-name="' + escapeHtml(u.username) + '">Reenviar correo de bienvenida</button>'
-            : "") +
-        "</article>"
+        "</details>"
       );
     })
     .join("");
@@ -509,7 +515,7 @@ export async function refreshAdminViews(cardsCache) {
       return true;
     })
     .map((u) => summarizeUser(u, u.id || u.uid, cachedBundle, mode, dateStr))
-    .sort((a, b) => Number(b.active) - Number(a.active) || a.username.localeCompare(b.username, "es"));
+    .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || a.username.localeCompare(b.username, "es"));
 
   if (countEl) countEl.textContent = String(rows.length);
   if (resetEl) renderResets(resetEl, cachedBundle.resets || []);
