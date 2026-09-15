@@ -3,7 +3,7 @@
  * No cambia cómo juegan los demás: solo lee usuarios, compras y sorteos.
  */
 import { getAuth } from "firebase/auth";
-import { getFirestore, collection, getDocs, doc, setDoc } from "firebase/firestore";
+import { getFirestore, collection, getDocs, getDoc, doc, setDoc } from "firebase/firestore";
 import { getFirebaseApp } from "./db.js";
 import { slugFromUsername, isAdminAccount, WHATSAPP_GROUP_LINK } from "./auth.js";
 import { isWithinVideoRetention, loadLocalDrawMedia } from "./drawStore.js";
@@ -155,21 +155,111 @@ async function loadUsersViaApi() {
   }
 }
 
-export async function loadAdminBundle(cardsCache) {
-  const app = getFirebaseApp();
-  if (!app) {
-    return { users: [], plays: [], draws: [], resets: [], cardsCache: cardsCache || {} };
+function usersFromCards(cardsCache) {
+  const map = new Map();
+  CARD_VALUES.forEach((value) => {
+    const card = cardsCache && cardsCache[value];
+    const numbers = (card && card.numbers) || {};
+    Object.keys(numbers).forEach((n) => {
+      const slot = numbers[n];
+      if (!slot) return;
+      const username = slot.owner || slot.fullName || "";
+      const uid = slot.ownerUid || "";
+      const key = uid || slugFromUsername(username);
+      if (!key) return;
+      const prev = map.get(key) || {
+        id: uid || key,
+        uid: uid || key,
+        username,
+        fullName: slot.fullName || username,
+        phone: slot.phone || "",
+        email: "",
+        createdAt: Number(slot.boughtAt) || 0,
+      };
+      if (username && !prev.username) prev.username = username;
+      if (slot.phone && !prev.phone) prev.phone = slot.phone;
+      const bought = Number(slot.boughtAt) || 0;
+      if (bought && (!prev.createdAt || bought < prev.createdAt)) prev.createdAt = bought;
+      map.set(key, prev);
+    });
+  });
+  return Array.from(map.values());
+}
+
+function mergeUserLists() {
+  const map = new Map();
+  Array.from(arguments).forEach((list) => {
+    (list || []).forEach((u) => {
+      if (!u) return;
+      const key = String(u.uid || u.id || slugFromUsername(u.username) || "");
+      if (!key) return;
+      const prev = map.get(key) || {};
+      const a = Number(prev.createdAt) || 0;
+      const b = Number(u.createdAt) || 0;
+      map.set(key, {
+        ...prev,
+        ...u,
+        id: prev.id || u.id || key,
+        uid: prev.uid || u.uid || key,
+        username: u.username || prev.username || "",
+        phone: u.phone || prev.phone || "",
+        email: u.email || prev.email || "",
+        createdAt: a && b ? Math.min(a, b) : b || a,
+      });
+    });
+  });
+  return Array.from(map.values());
+}
+
+async function loadOwnUser(firestore) {
+  try {
+    const app = getFirebaseApp();
+    if (!app) return [];
+    const user = getAuth(app).currentUser;
+    if (!user) return [];
+    const snap = await getDoc(doc(firestore, "users", user.uid));
+    if (snap.exists()) return [{ id: snap.id, uid: snap.id, ...snap.data() }];
+    return [
+      {
+        id: user.uid,
+        uid: user.uid,
+        username: user.displayName || "Miguel_NP_10",
+        email: user.email || "",
+        phone: "",
+        role: "admin",
+        createdAt: 0,
+      },
+    ];
+  } catch {
+    return [];
   }
-  const firestore = getFirestore(app);
-  const fromApi = await loadUsersViaApi();
-  const [usersClient, plays, draws, resets] = await Promise.all([
-    fromApi ? Promise.resolve([]) : readCollection(firestore, "users"),
-    readCollection(firestore, "plays"),
-    readCollection(firestore, "draws"),
-    readCollection(firestore, "passwordResets"),
-  ]);
-  const users = fromApi && fromApi.length ? fromApi : usersClient;
-  return { users, plays, draws, resets, cardsCache: cardsCache || {} };
+}
+
+export async function loadAdminBundle(cardsCache) {
+  const empty = { users: [], plays: [], draws: [], resets: [], cardsCache: cardsCache || {} };
+  try {
+    const app = getFirebaseApp();
+    if (!app) return empty;
+    const firestore = getFirestore(app);
+    const fromApi = await loadUsersViaApi();
+    const [usersClient, plays, draws, resets, own] = await Promise.all([
+      fromApi && fromApi.length ? Promise.resolve([]) : readCollection(firestore, "users"),
+      readCollection(firestore, "plays"),
+      readCollection(firestore, "draws"),
+      readCollection(firestore, "passwordResets"),
+      loadOwnUser(firestore),
+    ]);
+    const users = mergeUserLists(fromApi, usersClient, usersFromCards(cardsCache), own);
+    return { users, plays, draws, resets, cardsCache: cardsCache || {} };
+  } catch {
+    return {
+      users: mergeUserLists(usersFromCards(cardsCache)),
+      plays: [],
+      draws: [],
+      resets: [],
+      cardsCache: cardsCache || {},
+    };
+  }
 }
 
 function playNumKey(play, num) {
@@ -208,7 +298,7 @@ function collapsePlays(plays) {
 function summarizeUser(user, uid, bundle, mode, dateStr) {
   const username = user.username || "—";
   const plays = collapsePlays(
-    bundle.plays.filter((p) => {
+    (bundle.plays || []).filter((p) => {
       const mine = (p.uid && p.uid === uid) || slugFromUsername(p.username) === slugFromUsername(username);
       return mine && inRange(p.ts, mode, dateStr);
     })
@@ -216,7 +306,7 @@ function summarizeUser(user, uid, bundle, mode, dateStr) {
   const numbersPaid = plays.reduce((n, p) => n + (Number(p.count) || (p.numbers || []).length || 0), 0);
   const spent = plays.reduce((n, p) => n + (Number(p.amount) || 0), 0);
   const cardsPlayed = new Set(plays.map((p) => p.cardValue).filter((v) => v != null)).size;
-  const wins = bundle.draws.filter((d) => {
+  const wins = (bundle.draws || []).filter((d) => {
     const mine = (d.winnerUid && d.winnerUid === uid) || String(d.winnerName || "").trim().toLowerCase() === String(username).trim().toLowerCase();
     return mine && inRange(d.ts, mode, dateStr);
   });
@@ -280,9 +370,9 @@ function renderResets(listEl, resets) {
 
 function userCardHtml(u, i, extraClass) {
   const active = u.active
-    ? '<span class="admin-live">En tablero activo · ' + u.activeValues.map((v) => fmt(v)).join(", ") + "</span>"
+        ? '<span class="admin-live">En tablero activo · ' + (u.activeValues || []).map((v) => fmt(v)).join(", ") + "</span>"
     : '<span class="admin-idle">Sin tablero activo</span>';
-  const wins = u.winDetails
+  const wins = (u.winDetails || [])
     .map((d) => fmt(d.prize) + " (" + fmt(d.cardValue) + ")")
     .join(" · ") || "—";
   const when = u.createdAt
@@ -332,7 +422,8 @@ function renderUsers(listEl, rows) {
   const inMonth = players
     .filter((u) => {
       const p = bogotaCreatedParts(u.createdAt);
-      return p && p.year === year && p.month === month;
+      if (!p) return year === now.year && month === now.month;
+      return p.year === year && p.month === month;
     })
     .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || a.username.localeCompare(b.username, "es"));
 
@@ -383,8 +474,8 @@ function renderUsers(listEl, rows) {
 }
 
 function renderCaja(root, bundle, mode, dateStr) {
-  const draws = bundle.draws.filter((d) => inRange(d.ts, mode, dateStr));
-  const plays = collapsePlays(bundle.plays.filter((p) => inRange(p.ts, mode, dateStr)));
+  const draws = (bundle.draws || []).filter((d) => inRange(d.ts, mode, dateStr));
+  const plays = collapsePlays((bundle.plays || []).filter((p) => inRange(p.ts, mode, dateStr)));
   const closedNumbers = draws.reduce((n, d) => {
     if (d.paidCount != null) return n + Number(d.paidCount);
     if (d.collected != null && d.cardValue) return n + Math.round(Number(d.collected) / Number(d.cardValue));
@@ -635,7 +726,7 @@ export async function refreshAdminViews(cardsCache) {
 
     const keepAdminSlug = KEEP_ADMIN_SLUG;
     let keptAdmin = false;
-    const rows = cachedBundle.users
+    const rows = (cachedBundle.users || [])
       .filter((u) => {
         const slug = slugFromUsername(u.username);
         const admin = isAdminAccount(u, u.username, u.email) || u.role === "admin";
@@ -645,21 +736,38 @@ export async function refreshAdminViews(cardsCache) {
         return true;
       })
       .map((u) => summarizeUser(u, u.id || u.uid, cachedBundle, mode, dateStr))
-      .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || a.username.localeCompare(b.username, "es"));
+      .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || String(a.username || "").localeCompare(String(b.username || ""), "es"));
 
     cachedUserRows = rows;
     if (countEl) countEl.textContent = String(rows.filter((u) => !isKeptAdminRow(u)).length);
     if (resetEl) renderResets(resetEl, cachedBundle.resets || []);
-    renderUsers(usersEl, rows);
-    renderCaja(cajaEl, cachedBundle, mode, dateStr);
+    try {
+      renderUsers(usersEl, rows);
+    } catch (err) {
+      console.error(err);
+      usersEl.innerHTML = '<div class="empty-note">La lista tardó. Pulsa Actualizar. Las cuentas no se borraron.</div>';
+    }
+    try {
+      renderCaja(cajaEl, cachedBundle, mode, dateStr);
+    } catch (err) {
+      console.error(err);
+      cajaEl.innerHTML = '<div class="empty-note">No se pudo armar la caja. Pulsa Actualizar.</div>';
+    }
     renderVideos(videosEl, cachedBundle, mode, dateStr).catch(() => {
       videosEl.innerHTML = '<div class="empty-note">Los sorteos se cargan aparte. Las cuentas no se tocan.</div>';
     });
   } catch (err) {
     console.error(err);
-    usersEl.innerHTML = '<div class="empty-note">No se pudo cargar la lista. Pulsa Actualizar. Las cuentas no se borraron.</div>';
-    cajaEl.innerHTML = '<div class="empty-note">No se pudo cargar la caja. Pulsa Actualizar.</div>';
-    videosEl.innerHTML = '<div class="empty-note">No se pudieron cargar los sorteos.</div>';
+    try {
+      const fallback = mergeUserLists(usersFromCards(cardsCache));
+      const mode = document.getElementById("adminRange")?.value || "all";
+      const dateStr = document.getElementById("adminDate")?.value || "";
+      const rows = fallback.map((u) => summarizeUser(u, u.id || u.uid, { plays: [], draws: [], cardsCache: cardsCache || {} }, mode, dateStr));
+      cachedUserRows = rows;
+      renderUsers(usersEl, rows);
+    } catch {
+      usersEl.innerHTML = '<div class="empty-note">Pulsa Actualizar. Las cuentas no se borraron.</div>';
+    }
   }
 }
 
