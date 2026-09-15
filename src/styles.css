@@ -151,7 +151,22 @@
     color:#0e1f18; background:var(--emerald-bright); border-radius:100px; padding:5px 10px;
   }
   .admin-idle{margin-left:auto; font-size:0.72rem; color:var(--text-faint);}
-  .admin-user-body{margin-top:4px;}
+  .admin-user-pin{margin-bottom:22px;}
+  .admin-user-self{
+    border-color:var(--gold-dim);
+    background:linear-gradient(165deg, var(--gold-wash), var(--surface));
+  }
+  .admin-month-bar{
+    display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap;
+    margin:8px 0 16px;
+  }
+  .admin-month-bar .admin-filter-item select{
+    min-width:11rem;
+  }
+  .admin-month-count{
+    font-size:0.78rem; color:var(--text-faint); padding-bottom:8px;
+  }
+  .admin-user-month .section-label{margin-top:4px;}
   .admin-user-grid{
     display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px 14px; margin-top:14px;
   }

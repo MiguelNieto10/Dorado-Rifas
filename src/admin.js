@@ -9,7 +9,51 @@ import { slugFromUsername, isAdminAccount, WHATSAPP_GROUP_LINK } from "./auth.js
 import { isWithinVideoRetention, pruneExpiredDrawArchives, loadLocalDrawMedia } from "./drawStore.js";
 import { winnerPosterFile } from "./drawRecord.js";
 
-const CARD_VALUES = [2000, 5000, 10000, 20000, 50000, 100000];
+const KEEP_ADMIN_SLUG = "miguel_np_10";
+const MONTH_NAMES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
+let cachedUserRows = [];
+let pickedUserYear = 0;
+let pickedUserMonth = 0;
+
+function bogotaNowParts() {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(new Date()).map((p) => [p.type, p.value]));
+  return { year: parseInt(parts.year, 10), month: parseInt(parts.month, 10) };
+}
+
+function bogotaCreatedParts(ts) {
+  const t = Number(ts) || 0;
+  if (!t) return null;
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(new Date(t)).map((p) => [p.type, p.value]));
+  return { year: parseInt(parts.year, 10), month: parseInt(parts.month, 10) };
+}
+
+function isKeptAdminRow(u) {
+  return slugFromUsername(u.username) === KEEP_ADMIN_SLUG;
+}
 
 function fmt(n) {
   return "$" + Math.round(n || 0).toLocaleString("es-CO");
@@ -207,49 +251,108 @@ function renderResets(listEl, resets) {
       .join("");
 }
 
+function userCardHtml(u, i, extraClass) {
+  const active = u.active
+    ? '<span class="admin-live">En tablero activo · ' + u.activeValues.map((v) => fmt(v)).join(", ") + "</span>"
+    : '<span class="admin-idle">Sin tablero activo</span>';
+  const wins = u.winDetails
+    .map((d) => fmt(d.prize) + " (" + fmt(d.cardValue) + ")")
+    .join(" · ") || "—";
+  const when = u.createdAt
+    ? new Date(u.createdAt).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })
+    : "—";
+  return (
+    '<details class="admin-user' + (extraClass ? " " + extraClass : "") + '">' +
+      '<summary class="admin-user-top">' +
+        '<span class="admin-idx">' + (i + 1) + "</span>" +
+        '<div><div class="admin-user-name">' + escapeHtml(u.username) + "</div>" +
+        '<div class="admin-user-meta">Celular ' + escapeHtml(u.phone) + (u.email ? " · " + escapeHtml(u.email) : "") + " · Llegó " + escapeHtml(when) + "</div></div>" +
+        active +
+        '<span class="admin-user-chevron" aria-hidden="true">▾</span>' +
+      "</summary>" +
+      '<div class="admin-user-body">' +
+        '<div class="admin-user-grid">' +
+          "<div><span class=\"k\">Tableros jugados</span><span class=\"v\">" + u.cardsPlayed + "</span></div>" +
+          "<div><span class=\"k\">Compras</span><span class=\"v\">" + u.purchases + "</span></div>" +
+          "<div><span class=\"k\">Números pagos</span><span class=\"v\">" + u.numbersPaid + "</span></div>" +
+          "<div><span class=\"k\">Veces que ganó</span><span class=\"v\">" + u.wins + "</span></div>" +
+          "<div><span class=\"k\">Cifras ganadas</span><span class=\"v\">" + fmt(u.wonAmount) + "</span></div>" +
+          "<div><span class=\"k\">Pagó</span><span class=\"v\">" + fmt(u.spent) + "</span></div>" +
+        "</div>" +
+        '<p class="admin-win-line">Premios: ' + escapeHtml(wins) + "</p>" +
+        (u.email
+          ? '<button class="btn btn-outline btn-sm" type="button" data-resend-welcome="' + escapeHtml(u.email) + '" data-resend-name="' + escapeHtml(u.username) + '">Reenviar correo de bienvenida</button>'
+          : "") +
+      "</div>" +
+    "</details>"
+  );
+}
+
 function renderUsers(listEl, rows) {
-  if (!rows.length) {
-    listEl.innerHTML = '<div class="empty-note">Aún no hay cuentas registradas en este periodo.</div>';
-    return;
-  }
-  listEl.innerHTML = rows
-    .map((u, i) => {
-      const active = u.active
-        ? '<span class="admin-live">En tablero activo · ' + u.activeValues.map((v) => fmt(v)).join(", ") + "</span>"
-        : '<span class="admin-idle">Sin tablero activo</span>';
-      const wins = u.winDetails
-        .map((d) => fmt(d.prize) + " (" + fmt(d.cardValue) + ")")
-        .join(" · ") || "—";
-      const when = u.createdAt
-        ? new Date(u.createdAt).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })
-        : "—";
-      return (
-        '<details class="admin-user">' +
-          '<summary class="admin-user-top">' +
-            '<span class="admin-idx">' + (i + 1) + "</span>" +
-            '<div><div class="admin-user-name">' + escapeHtml(u.username) + "</div>" +
-            '<div class="admin-user-meta">Celular ' + escapeHtml(u.phone) + (u.email ? " · " + escapeHtml(u.email) : "") + " · Llegó " + escapeHtml(when) + "</div></div>" +
-            active +
-            '<span class="admin-user-chevron" aria-hidden="true">▾</span>' +
-          "</summary>" +
-          '<div class="admin-user-body">' +
-            '<div class="admin-user-grid">' +
-              "<div><span class=\"k\">Tableros jugados</span><span class=\"v\">" + u.cardsPlayed + "</span></div>" +
-              "<div><span class=\"k\">Compras</span><span class=\"v\">" + u.purchases + "</span></div>" +
-              "<div><span class=\"k\">Números pagos</span><span class=\"v\">" + u.numbersPaid + "</span></div>" +
-              "<div><span class=\"k\">Veces que ganó</span><span class=\"v\">" + u.wins + "</span></div>" +
-              "<div><span class=\"k\">Cifras ganadas</span><span class=\"v\">" + fmt(u.wonAmount) + "</span></div>" +
-              "<div><span class=\"k\">Pagó</span><span class=\"v\">" + fmt(u.spent) + "</span></div>" +
-            "</div>" +
-            '<p class="admin-win-line">Premios: ' + escapeHtml(wins) + "</p>" +
-            (u.email
-              ? '<button class="btn btn-outline btn-sm" type="button" data-resend-welcome="' + escapeHtml(u.email) + '" data-resend-name="' + escapeHtml(u.username) + '">Reenviar correo de bienvenida</button>'
-              : "") +
-          "</div>" +
-        "</details>"
-      );
+  const now = bogotaNowParts();
+  const players = (rows || []).filter((u) => !isKeptAdminRow(u));
+  const admins = (rows || []).filter((u) => isKeptAdminRow(u));
+  const years = new Set(players.map((u) => bogotaCreatedParts(u.createdAt)?.year).filter(Boolean));
+  years.add(now.year);
+  const yearList = [...years].sort((a, b) => b - a);
+  let year = pickedUserYear || now.year;
+  if (!yearList.includes(year)) year = yearList[0] || now.year;
+  let month = pickedUserMonth || now.month;
+  if (month < 1 || month > 12) month = now.month;
+  pickedUserYear = year;
+  pickedUserMonth = month;
+
+  const inMonth = players
+    .filter((u) => {
+      const p = bogotaCreatedParts(u.createdAt);
+      return p && p.year === year && p.month === month;
     })
+    .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || a.username.localeCompare(b.username, "es"));
+
+  const yearOpts = yearList
+    .map((y) => '<option value="' + y + '"' + (y === year ? " selected" : "") + ">" + y + "</option>")
     .join("");
+  const monthOpts = MONTH_NAMES.map(
+    (name, i) =>
+      '<option value="' +
+      (i + 1) +
+      '"' +
+      (i + 1 === month ? " selected" : "") +
+      ">" +
+      name.toUpperCase() +
+      "</option>"
+  ).join("");
+
+  const adminBlock = admins.length
+    ? '<section class="admin-user-pin">' +
+        '<p class="section-label">Administrador</p>' +
+        admins.map((u, i) => userCardHtml(u, i, "admin-user-self")).join("") +
+      "</section>"
+    : "";
+
+  const monthList = inMonth.length
+    ? inMonth.map((u, i) => userCardHtml(u, i, "")).join("")
+    : '<div class="empty-note">Nadie se registró en ' + MONTH_NAMES[month - 1] + " de " + year + ".</div>";
+
+  listEl.innerHTML =
+    adminBlock +
+    '<section class="admin-user-month">' +
+      '<p class="section-label">Usuarios</p>' +
+      '<div class="admin-month-bar">' +
+        '<label class="admin-filter-item">Mes' +
+          '<select id="adminUserMonth">' +
+            monthOpts +
+          "</select>" +
+        "</label>" +
+        '<label class="admin-filter-item">Año' +
+          '<select id="adminUserYear">' +
+            yearOpts +
+          "</select>" +
+        "</label>" +
+        '<span class="admin-month-count">' + inMonth.length + " en " + MONTH_NAMES[month - 1] + "</span>" +
+      "</div>" +
+      monthList +
+    "</section>";
 }
 
 function renderCaja(root, bundle, mode, dateStr) {
@@ -503,7 +606,7 @@ export async function refreshAdminViews(cardsCache) {
   const mode = document.getElementById("adminRange")?.value || "all";
   const dateStr = document.getElementById("adminDate")?.value || "";
 
-  const keepAdminSlug = "miguel_np_10";
+  const keepAdminSlug = KEEP_ADMIN_SLUG;
   let keptAdmin = false;
   const rows = cachedBundle.users
     .filter((u) => {
@@ -517,7 +620,8 @@ export async function refreshAdminViews(cardsCache) {
     .map((u) => summarizeUser(u, u.id || u.uid, cachedBundle, mode, dateStr))
     .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || a.username.localeCompare(b.username, "es"));
 
-  if (countEl) countEl.textContent = String(rows.length);
+  cachedUserRows = rows;
+  if (countEl) countEl.textContent = String(rows.filter((u) => !isKeptAdminRow(u)).length);
   if (resetEl) renderResets(resetEl, cachedBundle.resets || []);
   renderUsers(usersEl, rows);
   renderCaja(cajaEl, cachedBundle, mode, dateStr);
@@ -534,6 +638,13 @@ export function bindAdminFilters(getCardsCache) {
   });
   const usersEl = document.getElementById("adminUserList");
   if (usersEl) {
+    usersEl.addEventListener("change", (e) => {
+      const sel = e.target.closest("#adminUserMonth, #adminUserYear");
+      if (!sel) return;
+      if (sel.id === "adminUserMonth") pickedUserMonth = parseInt(sel.value, 10) || 0;
+      if (sel.id === "adminUserYear") pickedUserYear = parseInt(sel.value, 10) || 0;
+      renderUsers(usersEl, cachedUserRows);
+    });
     usersEl.addEventListener("click", async (e) => {
       const btn = e.target.closest("[data-resend-welcome]");
       if (!btn) return;
