@@ -10,6 +10,7 @@ import { isWithinVideoRetention, loadLocalDrawMedia } from "./drawStore.js";
 import { winnerPosterFile } from "./drawRecord.js";
 
 const KEEP_ADMIN_SLUG = "miguel_np_10";
+const CARD_VALUES = [2000, 5000, 10000, 20000, 50000, 100000];
 const MONTH_NAMES = [
   "Enero",
   "Febrero",
@@ -38,8 +39,24 @@ function bogotaNowParts() {
   }
 }
 
+function createdAtMs(value) {
+  if (value == null || value === "") return 0;
+  if (typeof value === "number" && isFinite(value)) return value;
+  if (typeof value === "string") {
+    const n = Number(value);
+    if (isFinite(n) && n > 0) return n;
+    const parsed = Date.parse(value);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  try {
+    if (typeof value.toMillis === "function") return value.toMillis();
+    if (value.seconds != null) return Number(value.seconds) * 1000;
+  } catch (e) {}
+  return 0;
+}
+
 function bogotaCreatedParts(ts) {
-  const t = Number(ts) || 0;
+  const t = createdAtMs(ts);
   if (!t) return null;
   try {
     const d = new Date(t);
@@ -139,7 +156,7 @@ async function loadUsersViaApi() {
     const user = getAuth(app).currentUser;
     if (!user) return null;
     const token = await Promise.race([
-      user.getIdToken(),
+      user.getIdToken(true),
       new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000)),
     ]);
     const res = await Promise.race([
@@ -173,11 +190,11 @@ function usersFromCards(cardsCache) {
         fullName: slot.fullName || username,
         phone: slot.phone || "",
         email: "",
-        createdAt: Number(slot.boughtAt) || 0,
+        createdAt: createdAtMs(slot.boughtAt),
       };
       if (username && !prev.username) prev.username = username;
       if (slot.phone && !prev.phone) prev.phone = slot.phone;
-      const bought = Number(slot.boughtAt) || 0;
+      const bought = createdAtMs(slot.boughtAt);
       if (bought && (!prev.createdAt || bought < prev.createdAt)) prev.createdAt = bought;
       map.set(key, prev);
     });
@@ -193,8 +210,8 @@ function mergeUserLists() {
       const key = String(u.uid || u.id || slugFromUsername(u.username) || "");
       if (!key) return;
       const prev = map.get(key) || {};
-      const a = Number(prev.createdAt) || 0;
-      const b = Number(u.createdAt) || 0;
+      const a = createdAtMs(prev.createdAt);
+      const b = createdAtMs(u.createdAt);
       map.set(key, {
         ...prev,
         ...u,
@@ -241,14 +258,31 @@ export async function loadAdminBundle(cardsCache) {
     if (!app) return empty;
     const firestore = getFirestore(app);
     const fromApi = await loadUsersViaApi();
-    const [usersClient, plays, draws, resets, own] = await Promise.all([
-      fromApi && fromApi.length ? Promise.resolve([]) : readCollection(firestore, "users"),
+    const [usersClient, usernames, plays, draws, resets, own] = await Promise.all([
+      readCollection(firestore, "users"),
+      readCollection(firestore, "usernames"),
       readCollection(firestore, "plays"),
       readCollection(firestore, "draws"),
       readCollection(firestore, "passwordResets"),
       loadOwnUser(firestore),
     ]);
-    const users = mergeUserLists(fromApi, usersClient, usersFromCards(cardsCache), own);
+    const fromNames = (usernames || []).map((row) => ({
+      id: row.uid || row.id,
+      uid: row.uid || row.id,
+      username: row.username || row.id,
+      email: row.email || "",
+      phone: "",
+      createdAt: createdAtMs(row.createdAt),
+    }));
+    const fromPlays = (plays || []).map((p) => ({
+      id: p.uid || slugFromUsername(p.username),
+      uid: p.uid || slugFromUsername(p.username),
+      username: p.username || "",
+      phone: p.phone || "",
+      email: "",
+      createdAt: createdAtMs(p.ts),
+    }));
+    const users = mergeUserLists(fromApi, usersClient, fromNames, fromPlays, usersFromCards(cardsCache), own);
     return { users, plays, draws, resets, cardsCache: cardsCache || {} };
   } catch {
     return {
@@ -316,7 +350,7 @@ function summarizeUser(user, uid, bundle, mode, dateStr) {
     username,
     email: user.email || "",
     phone: user.phone || "—",
-    createdAt: user.createdAt || 0,
+    createdAt: createdAtMs(user.createdAt),
     cardsPlayed,
     purchases: plays.length,
     numbersPaid,
@@ -417,32 +451,36 @@ function renderUsers(listEl, rows) {
   const yearList = Array.from(years).sort((a, b) => b - a);
   let year = pickedUserYear || now.year;
   if (!yearList.includes(year)) year = yearList[0] || now.year;
-  let month = pickedUserMonth || now.month;
-  if (month < 1 || month > 12) month = now.month;
+  const month = pickedUserMonth;
   pickedUserYear = year;
   pickedUserMonth = month;
 
-  const inMonth = players
+  const visible = players
     .filter((u) => {
+      if (!month) return true;
       const p = bogotaCreatedParts(u.createdAt);
-      if (!p) return year === now.year && month === now.month;
+      if (!p) return false;
       return p.year === year && p.month === month;
     })
-    .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || a.username.localeCompare(b.username, "es"));
+    .sort((a, b) => createdAtMs(a.createdAt) - createdAtMs(b.createdAt) || String(a.username || "").localeCompare(String(b.username || ""), "es"));
 
   const yearOpts = yearList
     .map((y) => '<option value="' + y + '"' + (y === year ? " selected" : "") + ">" + y + "</option>")
     .join("");
-  const monthOpts = MONTH_NAMES.map(
-    (name, i) =>
-      '<option value="' +
-      (i + 1) +
-      '"' +
-      (i + 1 === month ? " selected" : "") +
-      ">" +
-      name.toUpperCase() +
-      "</option>"
-  ).join("");
+  const monthOpts =
+    '<option value="0"' +
+    (!month ? " selected" : "") +
+    ">Todos</option>" +
+    MONTH_NAMES.map(
+      (name, i) =>
+        '<option value="' +
+        (i + 1) +
+        '"' +
+        (i + 1 === month ? " selected" : "") +
+        ">" +
+        name.toUpperCase() +
+        "</option>"
+    ).join("");
 
   const adminBlock = admins.length
     ? '<section class="admin-user-pin">' +
@@ -451,14 +489,15 @@ function renderUsers(listEl, rows) {
       "</section>"
     : "";
 
-  const monthList = inMonth.length
-    ? inMonth.map((u, i) => userCardHtml(u, i, "")).join("")
-    : '<div class="empty-note">Nadie se registró en ' + MONTH_NAMES[month - 1] + " de " + year + ".</div>";
+  const monthLabel = !month ? "desde el inicio" : MONTH_NAMES[month - 1] + " de " + year;
+  const monthList = visible.length
+    ? visible.map((u, i) => userCardHtml(u, i, "")).join("")
+    : '<div class="empty-note">Nadie se registró en ' + monthLabel + ".</div>";
 
   listEl.innerHTML =
     adminBlock +
     '<section class="admin-user-month">' +
-      '<p class="section-label">Usuarios</p>' +
+      '<p class="section-label">Usuarios registrados</p>' +
       '<div class="admin-month-bar">' +
         '<label class="admin-filter-item">Mes' +
           '<select id="adminUserMonth">' +
@@ -466,11 +505,17 @@ function renderUsers(listEl, rows) {
           "</select>" +
         "</label>" +
         '<label class="admin-filter-item">Año' +
-          '<select id="adminUserYear">' +
+          '<select id="adminUserYear"' +
+            (!month ? " disabled" : "") +
+            ">" +
             yearOpts +
           "</select>" +
         "</label>" +
-        '<span class="admin-month-count">' + inMonth.length + " en " + MONTH_NAMES[month - 1] + "</span>" +
+        '<span class="admin-month-count">' +
+        visible.length +
+        " " +
+        monthLabel +
+        "</span>" +
       "</div>" +
       monthList +
     "</section>";
@@ -733,45 +778,45 @@ export async function refreshAdminViews(cardsCache) {
         return true;
       })
       .map((u) => summarizeUser(u, u.id || u.uid, bundle, mode, dateStr))
-      .sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0) || String(a.username || "").localeCompare(String(b.username || ""), "es"));
+      .sort((a, b) => createdAtMs(a.createdAt) - createdAtMs(b.createdAt) || String(a.username || "").localeCompare(String(b.username || ""), "es"));
     cachedUserRows = rows;
     if (countEl) countEl.textContent = String(rows.filter((u) => !isKeptAdminRow(u)).length);
     renderUsers(usersEl, rows);
   }
 
-  const quick = {
-    users: mergeUserLists(
-      cachedBundle && cachedBundle.users,
-      usersFromCards(cardsCache),
-      (function () {
-        try {
-          const app = getFirebaseApp();
-          const user = app ? getAuth(app).currentUser : null;
-          if (!user) return [];
-          return [
-            {
-              id: user.uid,
-              uid: user.uid,
-              username: user.displayName || "Miguel_NP_10",
-              email: user.email || "",
-              phone: "",
-              role: "admin",
-              createdAt: 0,
-            },
-          ];
-        } catch (e) {
-          return [];
-        }
-      })()
-    ),
-    plays: (cachedBundle && cachedBundle.plays) || [],
-    draws: (cachedBundle && cachedBundle.draws) || [],
-    resets: (cachedBundle && cachedBundle.resets) || [],
-    cardsCache: cardsCache || {},
-  };
-  paint(quick);
-
   try {
+    const quick = {
+      users: mergeUserLists(
+        cachedBundle && cachedBundle.users,
+        usersFromCards(cardsCache),
+        (function () {
+          try {
+            const app = getFirebaseApp();
+            const user = app ? getAuth(app).currentUser : null;
+            if (!user) return [];
+            return [
+              {
+                id: user.uid,
+                uid: user.uid,
+                username: user.displayName || "Miguel_NP_10",
+                email: user.email || "",
+                phone: "",
+                role: "admin",
+                createdAt: 0,
+              },
+            ];
+          } catch (e) {
+            return [];
+          }
+        })()
+      ),
+      plays: (cachedBundle && cachedBundle.plays) || [],
+      draws: (cachedBundle && cachedBundle.draws) || [],
+      resets: (cachedBundle && cachedBundle.resets) || [],
+      cardsCache: cardsCache || {},
+    };
+    paint(quick);
+
     cachedBundle = await loadAdminBundle(cardsCache);
     if (resetEl) renderResets(resetEl, cachedBundle.resets || []);
     paint(cachedBundle);
@@ -779,9 +824,17 @@ export async function refreshAdminViews(cardsCache) {
     renderVideos(videosEl, cachedBundle, mode, dateStr).catch(function () {});
   } catch (err) {
     console.error(err);
-    paint(quick);
     try {
-      renderCaja(cajaEl, quick, mode, dateStr);
+      paint({
+        users: (cachedBundle && cachedBundle.users) || [],
+        plays: (cachedBundle && cachedBundle.plays) || [],
+        draws: (cachedBundle && cachedBundle.draws) || [],
+        resets: [],
+        cardsCache: cardsCache || {},
+      });
+    } catch (e) {}
+    try {
+      renderCaja(cajaEl, cachedBundle || { cardsCache: cardsCache || {}, plays: [], draws: [] }, mode, dateStr);
     } catch (e) {}
   }
 }

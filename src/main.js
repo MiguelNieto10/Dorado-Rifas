@@ -400,8 +400,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         if(isDrawLive(cardsCache[value])){
           runDrawAnimation(cardsCache[value]);
         }
-          runDrawAnimation(cardsCache[value]);
-        }
       }, ()=>{});
     });
 
