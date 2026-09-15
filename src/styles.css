@@ -191,6 +191,18 @@
   .admin-open h3{font-size:1.35rem; margin-bottom:6px;}
   .admin-open p{color:var(--text-dim); font-size:0.9rem; margin-bottom:14px;}
   .admin-count-line{color:var(--text-faint);}
+  .admin-help-tab{
+    background:var(--surface); border:1px solid var(--border-soft); border-radius:var(--radius-m);
+    padding:10px 14px; margin:8px 0 4px; max-width:52ch;
+  }
+  .admin-help-tab > summary{
+    list-style:none; cursor:pointer; color:var(--gold-bright); font-size:0.82rem; font-weight:600;
+    touch-action:manipulation;
+  }
+  .admin-help-tab > summary::-webkit-details-marker{display:none;}
+  .admin-help-tab > summary::after{content:" ▾"; font-size:0.75rem;}
+  .admin-help-tab[open] > summary::after{content:" ▴";}
+  .admin-help-tab p{margin:10px 0 2px; font-size:0.88rem; color:var(--text-dim); line-height:1.45;}
   .admin-video-day{margin-bottom:28px;}
   .admin-video-day h3{font-size:1.15rem; margin-bottom:12px; text-transform:capitalize;}
   .admin-video-card{
