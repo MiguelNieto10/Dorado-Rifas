@@ -50,17 +50,17 @@
 
     <div data-auth-step="form">
       <h2 id="authTitle">Bienvenido a Dorado</h2>
-      <p class="auth-lead" id="authLead">Crea tu cuenta. Los campos con * son obligatorios. Sin completarlos no puedes apostar.</p>
+      <p class="auth-lead" id="authLead">Nombre y apellido, correo, celular y clave. Los campos con * son obligatorios.</p>
       <div class="auth-tabs" id="authTabs">
         <button type="button" class="active" id="authModeRegister">Crear cuenta</button>
         <button type="button" id="authModeLogin">Ya tengo cuenta</button>
       </div>
       <form id="authForm" novalidate>
-        <label>Nombre de usuario <span class="req">*</span>
-          <input class="input-field" id="authUsername" name="username" autocomplete="username" required minlength="3" placeholder="ej. James_R">
-        </label>
-        <label id="authFullNameWrap">Nombre completo <span class="req">*</span>
+        <label id="authFullNameWrap">Nombre y apellido <span class="req">*</span>
           <input class="input-field" id="authFullName" name="name" autocomplete="name" required minlength="5" placeholder="nombre y apellido">
+        </label>
+        <label id="authUsernameWrap" hidden><span id="authUsernameLabel">Correo</span> <span class="req">*</span>
+          <input class="input-field" id="authUsername" name="username" autocomplete="username" minlength="3" placeholder="tucorreo@gmail.com">
         </label>
         <label id="authEmailWrap">Correo <span class="req">*</span>
           <input class="input-field" id="authEmail" name="email" type="email" autocomplete="email" required placeholder="tucorreo@gmail.com">
@@ -95,8 +95,8 @@
 
     <div data-auth-step="reset" hidden>
       <h2>Olvidé mi clave</h2>
-      <p class="auth-lead">Escribe el correo con el que te registraste (o tu usuario). Te llega un mensaje a ese correo para crear una clave nueva. Revisa también spam.</p>
-      <label>Correo o usuario
+      <p class="auth-lead">Escribe el correo con el que te registraste. Te llega un mensaje a ese correo para crear una clave nueva. Revisa también spam.</p>
+      <label>Correo
         <input class="input-field" id="authResetUser" name="reset-username" autocomplete="email" placeholder="tucorreo@gmail.com">
       </label>
       <button class="btn btn-gold btn-block" type="button" id="authResetSend" style="margin-top:16px;">Enviar correo para restablecer</button>
@@ -113,7 +113,7 @@
     <div data-auth-step="complete" hidden>
       <h2>Termina tu registro</h2>
       <p class="auth-lead">Faltan datos obligatorios (*). Sin ellos no puedes apostar ni participar en los sorteos.</p>
-      <label>Nombre completo <span class="req">*</span>
+      <label>Nombre y apellido <span class="req">*</span>
         <input class="input-field" id="completeFullName" name="complete-name" autocomplete="name" required minlength="5" placeholder="nombre y apellido">
       </label>
       <label>Correo <span class="req">*</span>

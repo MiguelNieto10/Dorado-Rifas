@@ -98,6 +98,18 @@ function isCompleteFullName(raw) {
   return parts.length >= 2 && String(raw || "").trim().length >= 5;
 }
 
+async function uniqueNameSlug(firestore, fullName) {
+  const base = slugFromUsername(fullName) || "jugador";
+  const safe = base.length >= 3 ? base : "jugador";
+  for (let n = 0; n < 80; n++) {
+    const slug = n === 0 ? safe : safe + String(n);
+    if (isAdminAccount({}, slug)) continue;
+    const taken = await getDoc(doc(firestore, "usernames", slug));
+    if (!taken.exists()) return slug;
+  }
+  return safe + Date.now().toString(36).slice(-4);
+}
+
 export function playerCanPlay(profile) {
   if (!profile) return false;
   return (
@@ -115,7 +127,7 @@ function firebaseErrorEs(err) {
   if (code === "auth/invalid-email") return "Escribe un correo válido.";
   if (code === "auth/weak-password") return "La clave debe tener al menos 6 caracteres.";
   if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
-    return "Nombre de usuario o clave incorrectos.";
+    return "Correo o clave incorrectos.";
   }
   if (code === "auth/operation-not-allowed" || code === "auth/configuration-not-found") {
     return "Falta activar Authentication en Firebase: Build → Authentication → Comenzar → Correo/contraseña → Activar. En Authorized domains agrega dorado-rifas.vercel.app";
@@ -407,10 +419,25 @@ export function runAuthGate() {
         if (title) title.textContent = "Administrador";
         if (lead) lead.textContent = "Solo ingreso. No hay registro aquí: entra con tu usuario de administrador.";
         const userInput = document.getElementById("authUsername");
-        if (userInput) userInput.placeholder = "tu usuario de administrador";
+        const userLabel = document.getElementById("authUsernameLabel");
+        if (userInput) {
+          userInput.placeholder = "tu usuario de administrador";
+          userInput.autocomplete = "username";
+        }
+        if (userLabel) userLabel.textContent = "Usuario";
+      } else if (mode === "login") {
+        if (title) title.textContent = "Bienvenido a Dorado";
+        if (lead) lead.textContent = "Entra con tu correo y tu clave.";
+        const userInput = document.getElementById("authUsername");
+        const userLabel = document.getElementById("authUsernameLabel");
+        if (userInput) {
+          userInput.placeholder = "tucorreo@gmail.com";
+          userInput.autocomplete = "email";
+        }
+        if (userLabel) userLabel.textContent = "Correo";
       } else {
         if (title) title.textContent = "Bienvenido a Dorado";
-        if (lead) lead.textContent = "Crea tu cuenta o inicia sesión. Los campos con * son obligatorios. Sin completarlos no puedes apostar.";
+        if (lead) lead.textContent = "Nombre y apellido, correo, celular y clave. Los campos con * son obligatorios.";
       }
       setAuthError("");
       syncRegisterFields();
@@ -423,6 +450,10 @@ export function runAuthGate() {
       if (emailWrap) emailWrap.hidden = !isRegister;
       const nameWrap = document.getElementById("authFullNameWrap");
       if (nameWrap) nameWrap.hidden = !isRegister;
+      const userWrap = document.getElementById("authUsernameWrap");
+      if (userWrap) userWrap.hidden = isRegister;
+      const userInput = document.getElementById("authUsername");
+      if (userInput) userInput.required = !isRegister;
       document.getElementById("authPhoneWrap").hidden = !isRegister;
       const phoneNote = document.getElementById("authPhoneNote");
       if (phoneNote) phoneNote.hidden = !isRegister;
@@ -451,13 +482,11 @@ export function runAuthGate() {
         btn.disabled = false;
         return;
       }
-      const username = (document.getElementById("authUsername") && document.getElementById("authUsername").value.trim()) || "";
       const password = (document.getElementById("authPassword") && document.getElementById("authPassword").value) || "";
       const emailInput = (document.getElementById("authEmail") && document.getElementById("authEmail").value.trim()) || "";
       const fullName = (document.getElementById("authFullName") && document.getElementById("authFullName").value.trim()) || "";
       const phone = normalizePhone(document.getElementById("authPhone") && document.getElementById("authPhone").value);
       btn.disabled = !(
-        slugFromUsername(username).length >= 3 &&
         password.length >= 6 &&
         isCompleteFullName(fullName) &&
         isValidEmail(emailInput) &&
@@ -486,7 +515,7 @@ export function runAuthGate() {
       e.preventDefault();
       setAuthError("");
       try {
-      const username = document.getElementById("authUsername").value.trim();
+      const loginId = document.getElementById("authUsername").value.trim();
       const password = document.getElementById("authPassword").value;
       const emailInput = (document.getElementById("authEmail") && document.getElementById("authEmail").value.trim()) || "";
       const fullName = (document.getElementById("authFullName") && document.getElementById("authFullName").value.trim()) || "";
@@ -497,22 +526,26 @@ export function runAuthGate() {
       const adminAttempt = mode === "admin";
       const rememberEl = document.getElementById("authRemember");
       const remember = adminAttempt || isAdminEntry() || !!(rememberEl && rememberEl.checked);
-      const slug = slugFromUsername(username);
+      const loginSlug = slugFromUsername(loginId);
 
-      if (slug.length < 3) {
-        setAuthError("El nombre de usuario debe tener al menos 3 letras o números.");
-        return;
-      }
       if (password.length < 6) {
         setAuthError("La clave debe tener al menos 6 caracteres.");
         return;
       }
-      if (adminAttempt && !isAdminAccount({}, username)) {
+      if (adminAttempt && !isAdminAccount({}, loginId)) {
         setAuthError("Ese usuario no está en la lista de administrador.");
         return;
       }
+      if (!isRegister && !adminAttempt && !loginId) {
+        setAuthError("El correo es obligatorio.");
+        return;
+      }
+      if (adminAttempt && loginSlug.length < 3) {
+        setAuthError("Escribe tu usuario de administrador.");
+        return;
+      }
       if (isRegister && !isCompleteFullName(fullName)) {
-        setAuthError("El nombre completo es obligatorio: nombre y apellido.");
+        setAuthError("Escribe tu nombre y tu apellido.");
         return;
       }
       if (isRegister && !emailInput) {
@@ -531,16 +564,12 @@ export function runAuthGate() {
         authSubmitInFlight = true;
         await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
         if (isRegister) {
-          if (isAdminAccount({}, username)) {
-            setAuthError("Ese usuario está reservado. Entra como jugador con otro nombre, o usa el enlace de administrador.");
+          if (isAdminAccount({}, fullName)) {
+            setAuthError("Ese nombre está reservado. Entra como jugador con otro nombre, o usa el enlace de administrador.");
             return;
           }
           const email = emailInput.toLowerCase();
-          const taken = await getDoc(doc(firestore, "usernames", slug));
-          if (taken.exists()) {
-            setAuthError("Ese nombre de usuario ya existe. Prueba otro o inicia sesión.");
-            return;
-          }
+          const slug = await uniqueNameSlug(firestore, fullName);
           const emailTaken = await getDoc(doc(firestore, "emails", emailDocId(email)));
           if (emailTaken.exists()) {
             setAuthError("Ese correo ya está en una cuenta. Inicia sesión o restablece la clave.");
@@ -548,11 +577,11 @@ export function runAuthGate() {
           }
           initialAuthHandled = true;
           const cred = await createUserWithEmailAndPassword(auth, email, password);
-          await updateProfile(cred.user, { displayName: username.trim() });
-          await setDoc(doc(firestore, "usernames", slug), { uid: cred.user.uid, email });
+          await updateProfile(cred.user, { displayName: fullName });
+          await setDoc(doc(firestore, "usernames", slug), { uid: cred.user.uid, email, username: fullName });
           await setDoc(doc(firestore, "emails", emailDocId(email)), { uid: cred.user.uid, slug });
           await setDoc(doc(firestore, "users", cred.user.uid), {
-            username: username.trim(),
+            username: fullName,
             fullName,
             email,
             phone: normalizePhone(phone),
@@ -561,13 +590,13 @@ export function runAuthGate() {
             createdAt: Date.now(),
           });
           sessionUser = cred.user;
-          sessionProfile = { username: username.trim(), fullName, email, phone: normalizePhone(phone), joinedWhatsapp: false, registrationComplete: false };
-          const mailed = await sendWelcomeEmail(email, username.trim());
+          sessionProfile = { username: fullName, fullName, email, phone: normalizePhone(phone), joinedWhatsapp: false, registrationComplete: false };
+          const mailed = await sendWelcomeEmail(email, fullName);
           sessionProfile.welcomeEmailSent = !!mailed.ok;
           await setDoc(doc(firestore, "users", cred.user.uid), { welcomeEmailSent: !!mailed.ok, welcomeEmailAt: Date.now() }, { merge: true });
           if (document.getElementById("authUseBio").checked) {
             try {
-              await enrollPasskey(firestore, cred.user.uid, username.trim());
+              await enrollPasskey(firestore, cred.user.uid, fullName);
             } catch {
               setAuthError("Cuenta creada. No se pudo guardar la huella; puedes entrar con tu clave.");
             }
@@ -575,14 +604,14 @@ export function runAuthGate() {
           await afterSignedIn(cred.user, { justRegistered: true });
         } else {
           initialAuthHandled = true;
-          const synthetic = emailFromUsername(username);
-          let email = adminAttempt ? synthetic : await resolveAuthEmail(username);
+          const synthetic = emailFromUsername(loginId);
+          let email = adminAttempt ? synthetic : await resolveAuthEmail(loginId);
           let cred;
           try {
             cred = await signInWithEmailAndPassword(auth, email, password);
           } catch (err) {
             if (!adminAttempt) throw err;
-            const alt = await resolveAuthEmail(username);
+            const alt = await resolveAuthEmail(loginId);
             if (!alt || alt === email) throw err;
             cred = await signInWithEmailAndPassword(auth, alt, password);
           }
@@ -792,7 +821,7 @@ export function runAuthGate() {
       const lead = document.querySelector("[data-auth-step='reset'] .auth-lead");
       if (lead) {
         lead.textContent =
-          "Escribe el correo con el que te registraste (o tu usuario). Te llega un mensaje a ese correo para crear una clave nueva. Revisa también spam.";
+          "Escribe el correo con el que te registraste. Te llega un mensaje a ese correo para crear una clave nueva. Revisa también spam.";
       }
       showStep("form");
       setAuthMode("login");
