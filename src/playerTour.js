@@ -26,8 +26,8 @@ const STEPS = [
     text: "En el grupo de WhatsApp envía la foto del pago a uno de los administradores del grupo. En el mismo mensaje escribe tu nombre y apellido, el tablero y el número o números. Si no lo envías, en 1 hora esos números quedan libres para que un nuevo jugador los tome en tu lugar, por no verificar tu pago.",
   },
   {
-    title: "Verde y premio",
-    text: "Cuando confirman tu pago, tu número se pone verde. Solo los verdes juegan. El premio es la mitad de lo recaudado en ese tablero. Siempre hay un ganador entre los verdes.",
+    title: "Número Verde y Premio",
+    text: "Cuando confirman tu pago, tu número se pone verde. Solo los números verdes juegan. El premio es la mitad de lo recaudado en ese tablero. Siempre hay un ganador entre los números verdes.",
   },
   {
     title: "Sorteo a las 9:00 p. m.",
