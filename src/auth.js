@@ -372,9 +372,40 @@ export function runAuthGate() {
     let sessionProfile = null;
     let initialAuthHandled = false;
     let authSubmitInFlight = false;
+    let adminEnterClicked = false;
+
     onAuthStateChanged(auth, async (user) => {
-      if (authSubmitInFlight) return;
-      if (initialAuthHandled || finishing) return;
+      if (authSubmitInFlight || finishing) return;
+
+      if (isAdminEntry()) {
+        if (!user) {
+          sessionUser = null;
+          showStep("form");
+          if (gate) gate.hidden = false;
+          return;
+        }
+        if (initialAuthHandled) return;
+        sessionUser = user;
+        try {
+          sessionProfile = await loadProfile(user);
+        } catch {
+          sessionProfile = { username: user.displayName || "", phone: "" };
+        }
+        if (!isAdminAccount(sessionProfile, sessionProfile.username || user.displayName, user.email)) {
+          sessionUser = null;
+          sessionProfile = null;
+          showStep("form");
+          if (gate) gate.hidden = false;
+          setAuthMode("admin");
+          setAuthError("");
+          return;
+        }
+        initialAuthHandled = true;
+        await afterSignedIn(user, { justRegistered: false, adminAttempt: true });
+        return;
+      }
+
+      if (initialAuthHandled) return;
       initialAuthHandled = true;
       if (!user) {
         sessionUser = null;
@@ -388,18 +419,7 @@ export function runAuthGate() {
       } catch {
         sessionProfile = { username: user.displayName || "", phone: "" };
       }
-      if (isAdminEntry() && !isAdminAccount(sessionProfile, sessionProfile.username || user.displayName, user.email)) {
-        sessionUser = null;
-        sessionProfile = null;
-        finishing = false;
-        initialAuthHandled = false;
-        showStep("form");
-        if (gate) gate.hidden = false;
-        setAuthMode("admin");
-        setAuthError("");
-        return;
-      }
-      await afterSignedIn(user, { justRegistered: false, adminAttempt: isAdminEntry() });
+      await afterSignedIn(user, { justRegistered: false, adminAttempt: false });
     });
 
     function authMode() {
@@ -510,10 +530,21 @@ export function runAuthGate() {
     }
     document.getElementById("authModeRegister").addEventListener("click", () => setAuthMode("register"));
     document.getElementById("authModeLogin").addEventListener("click", () => setAuthMode("login"));
+    const authSubmitBtn = document.getElementById("authSubmit");
+    if (authSubmitBtn) {
+      authSubmitBtn.addEventListener("pointerdown", () => {
+        if (isAdminEntry()) adminEnterClicked = true;
+      });
+    }
 
     document.getElementById("authForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       setAuthError("");
+      const mode = authMode();
+      const isRegister = mode === "register";
+      const adminAttempt = mode === "admin";
+      if (adminAttempt && !adminEnterClicked) return;
+      adminEnterClicked = false;
       try {
       const loginId = document.getElementById("authUsername").value.trim();
       const password = document.getElementById("authPassword").value;
@@ -521,9 +552,6 @@ export function runAuthGate() {
       const fullName = (document.getElementById("authFullName") && document.getElementById("authFullName").value.trim()) || "";
       const phoneEl = document.getElementById("authPhone");
       const phone = normalizePhone(phoneEl && phoneEl.value);
-      const mode = authMode();
-      const isRegister = mode === "register";
-      const adminAttempt = mode === "admin";
       const rememberEl = document.getElementById("authRemember");
       const remember = adminAttempt || isAdminEntry() || !!(rememberEl && rememberEl.checked);
       const loginSlug = slugFromUsername(loginId);
@@ -888,6 +916,12 @@ export function runAuthGate() {
     if (isAdminEntry()) {
       document.body.classList.add("admin-entry");
       document.title = "Administrador · Dorado Rifas";
+      const form = document.getElementById("authForm");
+      if (form) form.setAttribute("autocomplete", "off");
+      const userInput = document.getElementById("authUsername");
+      const passInput = document.getElementById("authPassword");
+      if (userInput) userInput.setAttribute("autocomplete", "off");
+      if (passInput) passInput.setAttribute("autocomplete", "off");
       const tabs = document.getElementById("authTabs");
       if (tabs) tabs.hidden = true;
       const goPlay = document.getElementById("authGoPlay");
