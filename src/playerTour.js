@@ -7,7 +7,7 @@ const STEPS = [
   },
   {
     title: "Arriba: Tableros, Ganadores y Tutorial",
-    text: "En Tableros eliges dónde jugar. En Ganadores ves el número ganador, el premio y la fecha. Tutorial vuelve a abrir este recorrido cuando quieras. Cómo funciona resume las reglas. Cerrar sesión sale de tu cuenta.",
+    text: "En Tableros eliges dónde jugar. En Ganadores ves el número, el nombre, la ciudad y el premio, para que quede claro que sí se gana. Tutorial vuelve a abrir este recorrido. Cómo funciona resume las reglas.",
   },
   {
     title: "Seis tableros de juego",

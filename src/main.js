@@ -85,14 +85,6 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     if(currentUid && slot.ownerUid && slot.ownerUid === currentUid) return true;
     return slot.owner === PROFILE.name || slot.owner === 'Tú' || slot.isUser === true;
   }
-  function winnerLabelForPlayer(h){
-    if(!h) return 'Ganador';
-    if(isAdmin) return h.winnerName || 'Ganador';
-    if(h.wonByUser) return 'Tú';
-    if(h.winnerUid && currentUid && h.winnerUid === currentUid) return 'Tú';
-    if(h.winnerName && (h.winnerName === PROFILE.name || h.winnerName === PROFILE.fullName)) return 'Tú';
-    return 'Ganador';
-  }
   function userHasPaidOn(card){
     return paidNumbers(card).some((n)=> slotBelongsToMe(card.numbers[n]));
   }
@@ -729,11 +721,10 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
         strip.dataset.histKey = histKey;
         const chips = hist.map((h)=>{
           const when = h.ts ? new Date(h.ts).toLocaleDateString('es-CO', { day:'numeric', month:'short' }) : '';
-          const who = winnerLabelForPlayer(h);
           return '<article class="history-chip">' +
             '<div class="hn">Nº ' + h.winningNumber + '</div>' +
-            '<div class="hw">' + who + '</div>' +
-            '<div class="hp">' + fmt(h.prize) + (isAdmin && h.winnerCity ? ' · ' + h.winnerCity : '') + '</div>' +
+            '<div class="hw">' + (h.wonByUser ? 'Tú' : (h.winnerName || '—')) + '</div>' +
+            '<div class="hp">' + fmt(h.prize) + (h.winnerCity ? ' · ' + h.winnerCity : '') + '</div>' +
             (when ? '<div class="hd">' + when + '</div>' : '') +
           '</article>';
         }).join('');
@@ -1159,8 +1150,8 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
           (wonByUser ? '<div class="reveal-congrats">¡Ganaste!</div>' : '<div class="reveal-congrats">Tenemos ganador</div>') +
           '<div class="reveal-kicker">Tablero de juego ' + fmt(value) + '</div>' +
           '<div class="reveal-num">' + card.pendingWinner + '</div>' +
-          '<div class="reveal-winner">' + (isAdmin || wonByUser ? winnerName : 'Ganador') + '</div>' +
-          (isAdmin || wonByUser ? '<div class="reveal-city">' + winnerCity + '</div>' : '') +
+          '<div class="reveal-winner">' + winnerName + '</div>' +
+          '<div class="reveal-city">' + winnerCity + '</div>' +
           '<div class="reveal-prize">' + fmt(prize) + '</div>' +
           '<p class="draw-msg reveal-meta">Premio: 50% de lo recaudado · ' + paidCount + ' números pagos<br>' + when + '</p>' +
           (wonByUser
@@ -1295,11 +1286,10 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     list.innerHTML = cardsWithHistory.map(v=>{
       const winners = cardsCache[v].history.slice().sort((a,b)=> b.ts - a.ts);
       const rows = winners.map(h=>{
-        const name = winnerLabelForPlayer(h);
-        const extra = isAdmin && h.winnerCity ? ' · ' + h.winnerCity : '';
+        const name = h.wonByUser ? 'Tú' : h.winnerName;
         return '<div class="activity-row">' +
           '<div class="activity-icon ai-premio">🏆</div>' +
-          '<div class="activity-body"><div class="activity-desc">' + name + extra + ' · Nº ' + h.winningNumber + '</div>' +
+          '<div class="activity-body"><div class="activity-desc">' + name + ' · ' + h.winnerCity + ' · Nº ' + h.winningNumber + '</div>' +
           '<div class="activity-date">' + new Date(h.ts).toLocaleString('es-CO',{dateStyle:'medium',timeStyle:'short'}) + '</div></div>' +
           '<div class="activity-amt amt-pos">' + fmt(h.prize) + '</div>' +
           '</div>';
