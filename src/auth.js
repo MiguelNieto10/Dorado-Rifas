@@ -80,6 +80,35 @@ function digitsPhone(raw) {
   return String(raw || "").replace(/\D/g, "");
 }
 
+export function normalizePhone(raw) {
+  let d = digitsPhone(raw);
+  if (d.startsWith("57") && d.length >= 12) d = d.slice(2);
+  return d;
+}
+
+export function isCompletePhone(raw) {
+  return /^3\d{9}$/.test(normalizePhone(raw));
+}
+
+function isCompleteFullName(raw) {
+  const parts = String(raw || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return parts.length >= 2 && String(raw || "").trim().length >= 5;
+}
+
+export function playerCanPlay(profile) {
+  if (!profile) return false;
+  return (
+    isCompleteFullName(profile.fullName) &&
+    isValidEmail(profile.email) &&
+    isCompletePhone(profile.phone) &&
+    !!profile.joinedWhatsapp &&
+    profile.registrationComplete !== false
+  );
+}
+
 function firebaseErrorEs(err) {
   const code = err && err.code;
   if (code === "auth/email-already-in-use") return "Ese correo o usuario ya existe. Prueba otro o inicia sesión.";
@@ -222,6 +251,9 @@ export function runAuthGate() {
         username: profile.username || user.displayName || "Jugador",
         phone: profile.phone || "",
         fullName: profile.fullName || profile.username || user.displayName || "",
+        email: profile.email || user.email || "",
+        joinedWhatsapp: !!profile.joinedWhatsapp,
+        registrationComplete: profile.registrationComplete,
         isAdmin: isAdminAccount(profile, profile.username || user.displayName, user.email),
       });
     }
@@ -271,14 +303,18 @@ export function runAuthGate() {
         }
         sessionProfile = { ...profile, role: "admin" };
       } else {
-        sessionProfile = profile;
+        sessionProfile = { ...profile, email: profile.email || user.email || "" };
       }
-      if (!adminOk && profile.registrationComplete === false) {
-        if (justRegistered) {
+      if (!adminOk && !playerCanPlay(sessionProfile || profile)) {
+        finishing = false;
+        if (gate) gate.hidden = false;
+        if (!isCompletePhone((sessionProfile || profile).phone) || !isCompleteFullName((sessionProfile || profile).fullName) || !isValidEmail((sessionProfile || profile).email)) {
+          fillCompleteStep(sessionProfile || profile);
+          showStep("complete");
+        } else {
           showStep("whatsapp");
-          return { user, profile, wait: true };
+          resetWhatsappConfirm();
         }
-        await abortIncompleteRegistration(user, profile);
         return { user, profile, wait: true };
       }
 
@@ -350,10 +386,6 @@ export function runAuthGate() {
         setAuthError("");
         return;
       }
-      if (!isAdminAccount(sessionProfile, sessionProfile.username || user.displayName, user.email) && sessionProfile.registrationComplete === false) {
-        await abortIncompleteRegistration(user, sessionProfile);
-        return;
-      }
       await afterSignedIn(user, { justRegistered: false, adminAttempt: isAdminEntry() });
     });
 
@@ -377,7 +409,7 @@ export function runAuthGate() {
         if (userInput) userInput.placeholder = "tu usuario de administrador";
       } else {
         if (title) title.textContent = "Bienvenido a Dorado";
-        if (lead) lead.textContent = "Crea tu cuenta o inicia sesión. Así tus números quedan a tu nombre.";
+        if (lead) lead.textContent = "Crea tu cuenta o inicia sesión. Los campos con * son obligatorios. Sin completarlos no puedes apostar.";
       }
       setAuthError("");
       syncRegisterFields();
@@ -391,6 +423,8 @@ export function runAuthGate() {
       const nameWrap = document.getElementById("authFullNameWrap");
       if (nameWrap) nameWrap.hidden = !isRegister;
       document.getElementById("authPhoneWrap").hidden = !isRegister;
+      const phoneNote = document.getElementById("authPhoneNote");
+      if (phoneNote) phoneNote.hidden = !isRegister;
       ["authFullName", "authEmail", "authPhone"].forEach((id) => {
         const el = document.getElementById(id);
         if (el) el.required = isRegister;
@@ -399,6 +433,7 @@ export function runAuthGate() {
       if (forgot) forgot.hidden = mode !== "login";
       document.getElementById("authSubmit").textContent =
         mode === "admin" ? "Entrar como administrador" : isRegister ? "Crear cuenta" : "Entrar";
+      syncRegisterSubmit();
       canUseBiometrics().then((ok) => {
         document.getElementById("authUseBioWrap").hidden = !(ok && isRegister);
         const loginBio = document.getElementById("authBioLoginBtn");
@@ -406,6 +441,41 @@ export function runAuthGate() {
       });
     }
 
+    function syncRegisterSubmit() {
+      const btn = document.getElementById("authSubmit");
+      if (!btn) return;
+      if (authMode() !== "register") {
+        btn.disabled = false;
+        return;
+      }
+      const username = (document.getElementById("authUsername") && document.getElementById("authUsername").value.trim()) || "";
+      const password = (document.getElementById("authPassword") && document.getElementById("authPassword").value) || "";
+      const emailInput = (document.getElementById("authEmail") && document.getElementById("authEmail").value.trim()) || "";
+      const fullName = (document.getElementById("authFullName") && document.getElementById("authFullName").value.trim()) || "";
+      const phone = normalizePhone(document.getElementById("authPhone") && document.getElementById("authPhone").value);
+      btn.disabled = !(
+        slugFromUsername(username).length >= 3 &&
+        password.length >= 6 &&
+        isCompleteFullName(fullName) &&
+        isValidEmail(emailInput) &&
+        isCompletePhone(phone)
+      );
+    }
+
+    ["authUsername", "authPassword", "authEmail", "authFullName", "authPhone"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener("input", () => {
+        if (id === "authPhone") el.value = normalizePhone(el.value).slice(0, 10);
+        syncRegisterSubmit();
+      });
+    });
+    const completePhoneEl = document.getElementById("completePhone");
+    if (completePhoneEl) {
+      completePhoneEl.addEventListener("input", () => {
+        completePhoneEl.value = normalizePhone(completePhoneEl.value).slice(0, 10);
+      });
+    }
     document.getElementById("authModeRegister").addEventListener("click", () => setAuthMode("register"));
     document.getElementById("authModeLogin").addEventListener("click", () => setAuthMode("login"));
 
@@ -418,7 +488,7 @@ export function runAuthGate() {
       const emailInput = (document.getElementById("authEmail") && document.getElementById("authEmail").value.trim()) || "";
       const fullName = (document.getElementById("authFullName") && document.getElementById("authFullName").value.trim()) || "";
       const phoneEl = document.getElementById("authPhone");
-      const phone = digitsPhone(phoneEl && phoneEl.value);
+      const phone = normalizePhone(phoneEl && phoneEl.value);
       const mode = authMode();
       const isRegister = mode === "register";
       const adminAttempt = mode === "admin";
@@ -438,12 +508,8 @@ export function runAuthGate() {
         setAuthError("Ese usuario no está en la lista de administrador.");
         return;
       }
-      if (isRegister && !fullName) {
-        setAuthError("El nombre completo es obligatorio.");
-        return;
-      }
-      if (isRegister && fullName.length < 5) {
-        setAuthError("Escribe tu nombre completo (nombre y apellido).");
+      if (isRegister && !isCompleteFullName(fullName)) {
+        setAuthError("El nombre completo es obligatorio: nombre y apellido.");
         return;
       }
       if (isRegister && !emailInput) {
@@ -454,12 +520,8 @@ export function runAuthGate() {
         setAuthError("Escribe un correo válido. Ahí te llega el mensaje si olvidas la clave.");
         return;
       }
-      if (isRegister && !phone) {
-        setAuthError("El número de celular es obligatorio.");
-        return;
-      }
-      if (isRegister && (phone.length < 10 || phone.length > 12)) {
-        setAuthError("Escribe un número de celular válido (10 dígitos).");
+      if (isRegister && !isCompletePhone(phone)) {
+        setAuthError("El celular es obligatorio: 10 dígitos y debe empezar por 3 (ej. 3001234567).");
         return;
       }
 
@@ -490,13 +552,13 @@ export function runAuthGate() {
             username: username.trim(),
             fullName,
             email,
-            phone,
+            phone: normalizePhone(phone),
             joinedWhatsapp: false,
             registrationComplete: false,
             createdAt: Date.now(),
           });
           sessionUser = cred.user;
-          sessionProfile = { username: username.trim(), fullName, email, phone, joinedWhatsapp: false, registrationComplete: false };
+          sessionProfile = { username: username.trim(), fullName, email, phone: normalizePhone(phone), joinedWhatsapp: false, registrationComplete: false };
           const mailed = await sendWelcomeEmail(email, username.trim());
           sessionProfile.welcomeEmailSent = !!mailed.ok;
           await setDoc(doc(firestore, "users", cred.user.uid), { welcomeEmailSent: !!mailed.ok, welcomeEmailAt: Date.now() }, { merge: true });
@@ -535,15 +597,31 @@ export function runAuthGate() {
       setAuthError("");
       try {
         await enrollPasskey(firestore, sessionUser.uid, sessionProfile.username);
-        if (!sessionProfile.joinedWhatsapp || sessionProfile.registrationComplete === false) showStep("whatsapp");
-        else await finish(sessionUser, sessionProfile);
+        if (!playerCanPlay(sessionProfile)) {
+          if (!isCompletePhone(sessionProfile.phone) || !isCompleteFullName(sessionProfile.fullName) || !isValidEmail(sessionProfile.email)) {
+            fillCompleteStep(sessionProfile);
+            showStep("complete");
+          } else {
+            showStep("whatsapp");
+            resetWhatsappConfirm();
+          }
+        } else await finish(sessionUser, sessionProfile);
       } catch (err) {
         setAuthError(err.message || "No se pudo activar la huella. Puedes continuar sin ella.");
       }
     });
     document.getElementById("authBioSkip").addEventListener("click", async () => {
-      if (!sessionProfile.joinedWhatsapp) showStep("whatsapp");
-      else await finish(sessionUser, sessionProfile);
+      if (!playerCanPlay(sessionProfile)) {
+        if (!isCompletePhone(sessionProfile.phone) || !isCompleteFullName(sessionProfile.fullName) || !isValidEmail(sessionProfile.email)) {
+          fillCompleteStep(sessionProfile);
+          showStep("complete");
+          return;
+        }
+        showStep("whatsapp");
+        resetWhatsappConfirm();
+        return;
+      }
+      await finish(sessionUser, sessionProfile);
     });
 
     async function sendWelcomeEmail(email, username) {
@@ -565,6 +643,17 @@ export function runAuthGate() {
 
     async function completeWhatsappJoin() {
       if (!sessionUser) return;
+      const box = document.getElementById("authWaConfirm");
+      if (!box || !box.checked) {
+        setAuthError("Marca la casilla: ya entré al grupo de WhatsApp. Es obligatorio.");
+        return;
+      }
+      if (!playerCanPlay({ ...sessionProfile, joinedWhatsapp: true, registrationComplete: true })) {
+        setAuthError("Primero completa nombre, correo y celular de 10 dígitos.");
+        fillCompleteStep(sessionProfile);
+        showStep("complete");
+        return;
+      }
       const next = { ...sessionProfile, joinedWhatsapp: true, registrationComplete: true };
       if (!next.welcomeEmailSent && next.email) {
         const mailed = await sendWelcomeEmail(next.email, next.username);
@@ -576,9 +665,72 @@ export function runAuthGate() {
       await finish(sessionUser, sessionProfile);
     }
 
-    document.getElementById("authJoinWa").addEventListener("click", async () => {
+    function resetWhatsappConfirm() {
+      const box = document.getElementById("authWaConfirm");
+      const done = document.getElementById("authWaDone");
+      if (box) {
+        box.checked = false;
+        box.disabled = true;
+      }
+      if (done) done.disabled = true;
+      setAuthError("");
+    }
+
+    function fillCompleteStep(profile) {
+      const nameEl = document.getElementById("completeFullName");
+      const emailEl = document.getElementById("completeEmail");
+      const phoneEl = document.getElementById("completePhone");
+      if (nameEl) nameEl.value = (profile && profile.fullName) || "";
+      if (emailEl) emailEl.value = (profile && profile.email) || "";
+      if (phoneEl) phoneEl.value = normalizePhone((profile && profile.phone) || "");
+    }
+
+    document.getElementById("authJoinWa").addEventListener("click", () => {
       window.open(WHATSAPP_GROUP_LINK, "_blank", "noopener");
+      const box = document.getElementById("authWaConfirm");
+      const done = document.getElementById("authWaDone");
+      if (box) box.disabled = false;
+      if (done) done.disabled = false;
+      setAuthError("Entra al grupo. Luego marca la casilla y pulsa terminar registro.");
+    });
+    document.getElementById("authWaDone").addEventListener("click", async () => {
+      setAuthError("");
       await completeWhatsappJoin();
+    });
+    document.getElementById("authWaConfirm").addEventListener("change", () => {
+      const done = document.getElementById("authWaDone");
+      const box = document.getElementById("authWaConfirm");
+      if (done) done.disabled = !(box && box.checked);
+    });
+
+    document.getElementById("completeSave").addEventListener("click", async () => {
+      setAuthError("");
+      if (!sessionUser) return;
+      const fullName = (document.getElementById("completeFullName") && document.getElementById("completeFullName").value.trim()) || "";
+      const emailInput = (document.getElementById("completeEmail") && document.getElementById("completeEmail").value.trim()) || "";
+      const phone = normalizePhone(document.getElementById("completePhone") && document.getElementById("completePhone").value);
+      if (!isCompleteFullName(fullName)) {
+        setAuthError("El nombre completo es obligatorio: nombre y apellido.");
+        return;
+      }
+      if (!isValidEmail(emailInput)) {
+        setAuthError("El correo es obligatorio y debe ser válido.");
+        return;
+      }
+      if (!isCompletePhone(phone)) {
+        setAuthError("El celular es obligatorio: 10 dígitos y debe empezar por 3.");
+        return;
+      }
+      const next = {
+        ...sessionProfile,
+        fullName,
+        email: emailInput.toLowerCase(),
+        phone,
+      };
+      await setDoc(doc(firestore, "users", sessionUser.uid), { fullName, email: next.email, phone }, { merge: true });
+      sessionProfile = next;
+      showStep("whatsapp");
+      resetWhatsappConfirm();
     });
 
     document.getElementById("authBioLoginBtn").addEventListener("click", async () => {

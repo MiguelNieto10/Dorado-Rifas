@@ -50,27 +50,28 @@
 
     <div data-auth-step="form">
       <h2 id="authTitle">Bienvenido a Dorado</h2>
-      <p class="auth-lead" id="authLead">Crea tu cuenta o inicia sesión. Así tus números quedan a tu nombre.</p>
+      <p class="auth-lead" id="authLead">Crea tu cuenta. Los campos con * son obligatorios. Sin completarlos no puedes apostar.</p>
       <div class="auth-tabs" id="authTabs">
         <button type="button" class="active" id="authModeRegister">Crear cuenta</button>
         <button type="button" id="authModeLogin">Ya tengo cuenta</button>
       </div>
       <form id="authForm" novalidate>
-        <label>Nombre de usuario *
+        <label>Nombre de usuario <span class="req">*</span>
           <input class="input-field" id="authUsername" name="username" autocomplete="username" required minlength="3" placeholder="ej. James_R">
         </label>
-        <label id="authFullNameWrap">Nombre completo *
+        <label id="authFullNameWrap">Nombre completo <span class="req">*</span>
           <input class="input-field" id="authFullName" name="name" autocomplete="name" required minlength="5" placeholder="nombre y apellido">
         </label>
-        <label id="authEmailWrap">Correo *
+        <label id="authEmailWrap">Correo <span class="req">*</span>
           <input class="input-field" id="authEmail" name="email" type="email" autocomplete="email" required placeholder="tucorreo@gmail.com">
         </label>
-        <label>Clave *
+        <label>Clave <span class="req">*</span>
           <input class="input-field" id="authPassword" name="password" type="password" autocomplete="current-password" required minlength="6" placeholder="mínimo 6 caracteres">
         </label>
-        <label id="authPhoneWrap">Número de celular *
-          <input class="input-field" id="authPhone" name="tel" type="tel" inputmode="numeric" autocomplete="tel" required minlength="10" maxlength="12" placeholder="3001234567">
+        <label id="authPhoneWrap">Número de celular <span class="req">*</span>
+          <input class="input-field" id="authPhone" name="tel" type="tel" inputmode="numeric" autocomplete="tel" required minlength="10" maxlength="10" placeholder="3001234567">
         </label>
+        <p class="auth-note" id="authPhoneNote">Celular de Colombia: 10 dígitos, empieza por 3. Ejemplo: 3001234567.</p>
         <label class="auth-check">
           <input type="checkbox" id="authRemember" checked>
           Recordar clave en este celular
@@ -103,10 +104,32 @@
       <button class="btn btn-ghost btn-block" type="button" id="authBioSkip" style="margin-top:10px;">Ahora no</button>
     </div>
 
+    <div data-auth-step="complete" hidden>
+      <h2>Termina tu registro</h2>
+      <p class="auth-lead">Faltan datos obligatorios (*). Sin ellos no puedes apostar ni participar en los sorteos.</p>
+      <label>Nombre completo <span class="req">*</span>
+        <input class="input-field" id="completeFullName" name="complete-name" autocomplete="name" required minlength="5" placeholder="nombre y apellido">
+      </label>
+      <label>Correo <span class="req">*</span>
+        <input class="input-field" id="completeEmail" name="complete-email" type="email" autocomplete="email" required placeholder="tucorreo@gmail.com">
+      </label>
+      <label>Número de celular <span class="req">*</span>
+        <input class="input-field" id="completePhone" name="complete-tel" type="tel" inputmode="numeric" autocomplete="tel" required minlength="10" maxlength="10" placeholder="3001234567">
+      </label>
+      <p class="auth-note">10 dígitos, empieza por 3.</p>
+      <button class="btn btn-gold btn-block" type="button" id="completeSave" style="margin-top:16px;">Continuar</button>
+    </div>
+
     <div data-auth-step="whatsapp" hidden>
-      <h2>Grupo de resultados</h2>
-      <p class="auth-lead">Es obligatorio unirte al grupo para terminar tu cuenta. Ahí se publican el sorteo y el ganador, y se envía el comprobante a los administradores. Si sales sin unirte, tu usuario no queda creado.</p>
+      <h2>Grupo de resultados <span class="req">*</span></h2>
+      <p class="auth-lead">Es obligatorio unirte al grupo para quedar registrado y activo. Ahí se publica el sorteo y se envía el comprobante. Completa los 4 pasos.</p>
+      <p class="auth-note">1. Pulsa Unirme al grupo. 2. Entra al grupo en WhatsApp. 3. Marca la casilla. 4. Termina el registro.</p>
       <button class="btn btn-gold btn-block btn-wa" type="button" id="authJoinWa"><svg class="wa-icon" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg> Unirme al grupo de WhatsApp</button>
+      <label class="auth-check" style="margin-top:14px;">
+        <input type="checkbox" id="authWaConfirm" disabled>
+        Ya entré al grupo de WhatsApp <span class="req">*</span>
+      </label>
+      <button class="btn btn-gold btn-block" type="button" id="authWaDone" disabled style="margin-top:10px;">Ya me uní — terminar registro</button>
     </div>
   </div>
   </div>
@@ -373,6 +396,19 @@
 </div>
 
 <div class="toast" id="toast" hidden></div>
+
+<div class="player-tour" id="playerTour" hidden>
+  <div class="player-tour-card">
+    <p class="player-tour-kicker">Tutorial del jugador</p>
+    <p class="player-tour-step mono" id="playerTourStep">1 / 10</p>
+    <h2 id="playerTourTitle">Bienvenido a Dorado</h2>
+    <p id="playerTourText"></p>
+    <div class="player-tour-actions">
+      <button class="btn btn-outline" type="button" id="playerTourPrev" hidden>Atrás</button>
+      <button class="btn btn-gold" type="button" id="playerTourNext">Siguiente</button>
+    </div>
+  </div>
+</div>
 
 <script type="module" src="/src/main.js"></script>
 </body>

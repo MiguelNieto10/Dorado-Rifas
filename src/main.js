@@ -1,5 +1,6 @@
 import { connectFirestore } from "./db.js";
-import { runAuthGate, signOutSession, isAdminEntry, WHATSAPP_GROUP_LINK } from "./auth.js";
+import { runAuthGate, signOutSession, isAdminEntry, WHATSAPP_GROUP_LINK, playerCanPlay } from "./auth.js";
+import { startPlayerTour } from "./playerTour.js";
 import { createDrawRecorder, winnerPosterFile } from "./drawRecord.js";
 import { bogotaDateKey, saveLocalDrawMedia, archiveDrawVideo } from "./drawStore.js";
 import { bindAdminFilters, refreshAdminViews } from "./admin.js";
@@ -752,6 +753,16 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
   }
 
   function confirmPurchase(method){
+    if(!playerCanPlay({
+      fullName: PROFILE.fullName,
+      email: PROFILE.email,
+      phone: PROFILE.phone,
+      joinedWhatsapp: PROFILE.joinedWhatsapp,
+      registrationComplete: PROFILE.registrationComplete
+    })){
+      toast('Termina tu registro (celular y grupo de WhatsApp) para poder apostar.');
+      return;
+    }
     const value = openCardValue;
     const card = cardsCache[value];
     const nums = Array.from(selectedNumbers);
@@ -1477,12 +1488,16 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     PROFILE.name = session.username || 'Jugador';
     PROFILE.phone = session.phone || '';
     PROFILE.fullName = session.fullName || session.username || '';
+    PROFILE.email = session.email || '';
+    PROFILE.joinedWhatsapp = !!session.joinedWhatsapp;
+    PROFILE.registrationComplete = session.registrationComplete;
     currentUid = session.uid;
     isAdmin = !!session.isAdmin && isAdminEntry();
     document.body.classList.toggle('is-admin', isAdmin);
     seedLocalIfEmpty();
     renderAll();
     initDb();
+    if(!isAdmin) startPlayerTour(session.uid);
     if(isAdmin){
       const dateEl = document.getElementById('adminDate');
       if(dateEl && !dateEl.value){

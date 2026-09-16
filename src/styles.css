@@ -733,6 +733,30 @@
     border-radius:var(--radius-s); padding:10px 12px; font-size:0.82rem; margin-bottom:14px;
   }
   .auth-card .btn:disabled{opacity:0.4; cursor:not-allowed;}
+  .req{color:var(--gold-bright); font-weight:700;}
+
+  .player-tour{
+    position:fixed; inset:0; z-index:105;
+    background:rgba(6,7,9,0.78);
+    display:flex; align-items:flex-end; justify-content:center;
+    padding:16px 16px max(20px, env(safe-area-inset-bottom));
+  }
+  .player-tour[hidden]{display:none !important;}
+  .player-tour-card{
+    width:100%; max-width:440px;
+    background:linear-gradient(165deg, var(--surface-2), var(--surface));
+    border:1px solid var(--gold-dim); border-radius:var(--radius-l);
+    padding:22px 20px 18px; box-shadow:var(--shadow-pop);
+  }
+  .player-tour-kicker{
+    font-size:0.68rem; letter-spacing:0.16em; text-transform:uppercase;
+    color:var(--gold-bright); margin:0 0 6px; font-weight:700;
+  }
+  .player-tour-step{font-size:0.78rem; color:var(--text-faint); margin:0 0 10px;}
+  .player-tour-card h2{font-size:1.35rem; margin:0 0 10px;}
+  .player-tour-card p#playerTourText{color:var(--text-dim); font-size:0.95rem; line-height:1.45; margin:0 0 18px;}
+  .player-tour-actions{display:flex; gap:10px;}
+  .player-tour-actions .btn{flex:1;}
 
   /* ============================================================
      TOAST
