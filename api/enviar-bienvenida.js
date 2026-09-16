@@ -1,5 +1,5 @@
-import nodemailer from "nodemailer";
-import { welcomeFrom, welcomeHtml, welcomeSubject, welcomeText } from "./_lib/welcomeEmail.js";
+import { sendDoradoMail } from "./_lib/mailer.js";
+import { welcomeHtml, welcomeSubject, welcomeText } from "./_lib/welcomeEmail.js";
 
 function readJson(req) {
   if (req.body && typeof req.body === "object") return req.body;
@@ -8,20 +8,6 @@ function readJson(req) {
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
-}
-
-function mailer() {
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = Number(process.env.SMTP_PORT || 587);
-  const user = process.env.SMTP_USER || process.env.GMAIL_USER;
-  const pass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) return null;
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-  });
 }
 
 export default async function handler(req, res) {
@@ -38,35 +24,18 @@ export default async function handler(req, res) {
     return;
   }
 
-  const transport = mailer();
-  if (!transport) {
-    res.status(503).json({
-      ok: false,
-      skipped: true,
-      error: "Falta SMTP_USER y SMTP_PASS (o GMAIL_USER y GMAIL_APP_PASSWORD) en Vercel.",
-    });
-    return;
-  }
-
   try {
-    await transport.sendMail({
-      from: welcomeFrom(),
-      sender: user,
+    await sendDoradoMail({
       to: email,
-      replyTo: user,
-      envelope: { from: user, to: email },
       subject: welcomeSubject(username),
       text: welcomeText(username),
       html: welcomeHtml(username),
-      headers: {
-        "X-Priority": "3",
-        "X-Auto-Response-Suppress": "OOF, AutoReply",
-      },
     });
     res.status(200).json({ ok: true });
   } catch (err) {
-    res.status(500).json({
+    res.status(err.status || 500).json({
       ok: false,
+      skipped: err.status === 503,
       error: (err && err.message) || "No se pudo enviar el correo de bienvenida.",
     });
   }

@@ -782,6 +782,18 @@ export function runAuthGate() {
     });
     document.getElementById("authResetBack").addEventListener("click", () => {
       setAuthError("");
+      const send = document.getElementById("authResetSend");
+      const field = document.getElementById("authResetUser");
+      if (send) {
+        send.hidden = false;
+        send.disabled = false;
+      }
+      if (field) field.disabled = false;
+      const lead = document.querySelector("[data-auth-step='reset'] .auth-lead");
+      if (lead) {
+        lead.textContent =
+          "Escribe el correo con el que te registraste (o tu usuario). Te llega un mensaje a ese correo para crear una clave nueva. Revisa también spam.";
+      }
       showStep("form");
       setAuthMode("login");
     });
@@ -793,45 +805,53 @@ export function runAuthGate() {
         return;
       }
       try {
-        const email = await resolveAuthEmail(input);
-        if (!isValidEmail(email) || email.endsWith("@dorado-rifas.app")) {
-          const slug = slugFromUsername(input);
-          const taken = await getDoc(doc(firestore, "usernames", slug));
-          if (taken.exists()) {
-            const uid = taken.data().uid;
-            await setDoc(doc(firestore, "passwordResets", slug), {
-              uid,
-              username: input,
-              phone: "",
-              status: "pending",
-              createdAt: Date.now(),
-            });
-            const lead = document.querySelector("[data-auth-step='reset'] .auth-lead");
-            if (lead) {
-              lead.textContent =
-                "Esa cuenta no tiene correo. Un administrador confirmará y te enviará una clave por WhatsApp.";
+        const btn = document.getElementById("authResetSend");
+        if (btn) btn.disabled = true;
+        const res = await fetch("/api/recuperar-clave", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status === 503 || res.status === 500) {
+            const email = await resolveAuthEmail(input);
+            if (isValidEmail(email) && !email.endsWith("@dorado-rifas.app")) {
+              await sendPasswordResetEmail(auth, email, {
+                url: location.origin + "/",
+                handleCodeInApp: false,
+              });
+              data.via = "email";
+              data.email = email;
+            } else {
+              if (btn) btn.disabled = false;
+              setAuthError(data.error || "No se pudo enviar el correo. Falta configurar SMTP_USER y SMTP_PASS en Vercel.");
+              return;
             }
-            document.getElementById("authResetSend").hidden = true;
-            document.getElementById("authResetUser").disabled = true;
+          } else {
+            if (btn) btn.disabled = false;
+            setAuthError(data.error || "No se pudo enviar el correo de recuperación.");
             return;
           }
-          setAuthError("No encontramos esa cuenta. Revisa el correo o el usuario.");
-          return;
         }
-        await sendPasswordResetEmail(auth, email, {
-          url: location.origin + "/",
-          handleCodeInApp: false,
-        });
         const lead = document.querySelector("[data-auth-step='reset'] .auth-lead");
-        if (lead) {
+        if (data.via === "admin") {
+          if (lead) {
+            lead.textContent =
+              "Esa cuenta no tiene un correo propio. Un administrador confirmará y te enviará una clave por WhatsApp.";
+          }
+        } else if (lead) {
+          const sentTo = data.email || input;
           lead.textContent =
-            "Si esa cuenta existe, el correo de recuperación ya salió a " +
-            email +
-            ". Ábrelo y crea una clave nueva. Revisa también spam. Luego entra con “Ya tengo cuenta”.";
+            "El correo para cambiar la clave ya salió a " +
+            sentTo +
+            ". Ábrelo, pulsa Crear clave nueva y luego entra con “Ya tengo cuenta”. Revisa también spam.";
         }
         document.getElementById("authResetSend").hidden = true;
         document.getElementById("authResetUser").disabled = true;
       } catch (err) {
+        const btn = document.getElementById("authResetSend");
+        if (btn) btn.disabled = false;
         setAuthError(firebaseErrorEs(err));
       }
     });
