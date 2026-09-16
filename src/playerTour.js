@@ -31,7 +31,7 @@ const STEPS = [
   },
   {
     title: "Sorteo a las 9:00 p. m.",
-    text: "Todos los días, a las 9:00 p. m. (hora de Bogotá), se hace el sorteo. Empieza el tablero de $2.000 y sigue en orden. Si un tablero no tiene números verdes, se salta. Ves la cuenta 10, 9, 8… hasta 0.",
+    text: "Todos los días, a las 9:00 p. m. (hora de Col 🇨🇴), se realiza el sorteo. Comienza el sorteo del tablero de $2.000 y sigue en orden. Si un tablero no tiene números verdes o jugadores, se salta el sorteo al siguiente tablero. Podrás ver el sorteo en su cuenta regresiva de 10 a 0 segundos, anunciando al ganador.",
   },
   {
     title: "Si ganas",
