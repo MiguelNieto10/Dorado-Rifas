@@ -23,7 +23,7 @@ const STEPS = [
   },
   {
     title: "Manda el comprobante",
-    text: "En el grupo de WhatsApp envía la foto del pago. En el mismo mensaje escribe tu nombre y apellido, el tablero y el número o números. Si no lo envías, a la 1 hora esos números se sueltan.",
+    text: "En el grupo de WhatsApp envía la foto del pago a uno de los administradores del grupo. En el mismo mensaje escribe tu nombre y apellido, el tablero y el número o números. Si no lo envías, en 1 hora esos números quedan libres para que un nuevo jugador los tome en tu lugar, por no verificar tu pago.",
   },
   {
     title: "Verde y premio",
