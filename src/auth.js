@@ -112,13 +112,7 @@ async function uniqueNameSlug(firestore, fullName) {
 
 export function playerCanPlay(profile) {
   if (!profile) return false;
-  return (
-    isCompleteFullName(profile.fullName) &&
-    isValidEmail(profile.email) &&
-    isCompletePhone(profile.phone) &&
-    !!profile.joinedWhatsapp &&
-    profile.registrationComplete !== false
-  );
+  return !!(profile.fullName || profile.username || profile.email);
 }
 
 function firebaseErrorEs(err) {
@@ -318,16 +312,11 @@ export function runAuthGate() {
       } else {
         sessionProfile = { ...profile, email: profile.email || user.email || "" };
       }
-      if (!adminOk && !playerCanPlay(sessionProfile || profile)) {
+      if (!adminOk && justRegistered) {
         finishing = false;
         if (gate) gate.hidden = false;
-        if (!isCompletePhone((sessionProfile || profile).phone) || !isCompleteFullName((sessionProfile || profile).fullName) || !isValidEmail((sessionProfile || profile).email)) {
-          fillCompleteStep(sessionProfile || profile);
-          showStep("complete");
-        } else {
-          showStep("whatsapp");
-          resetWhatsappConfirm();
-        }
+        showStep("whatsapp");
+        resetWhatsappConfirm();
         return { user, profile, wait: true };
       }
 
@@ -657,26 +646,16 @@ export function runAuthGate() {
       setAuthError("");
       try {
         await enrollPasskey(firestore, sessionUser.uid, sessionProfile.username);
-        if (!playerCanPlay(sessionProfile)) {
-          if (!isCompletePhone(sessionProfile.phone) || !isCompleteFullName(sessionProfile.fullName) || !isValidEmail(sessionProfile.email)) {
-            fillCompleteStep(sessionProfile);
-            showStep("complete");
-          } else {
-            showStep("whatsapp");
-            resetWhatsappConfirm();
-          }
+        if (sessionProfile && sessionProfile.registrationComplete === false) {
+          showStep("whatsapp");
+          resetWhatsappConfirm();
         } else await finish(sessionUser, sessionProfile);
       } catch (err) {
         setAuthError(err.message || "No se pudo activar la huella. Puedes continuar sin ella.");
       }
     });
     document.getElementById("authBioSkip").addEventListener("click", async () => {
-      if (!playerCanPlay(sessionProfile)) {
-        if (!isCompletePhone(sessionProfile.phone) || !isCompleteFullName(sessionProfile.fullName) || !isValidEmail(sessionProfile.email)) {
-          fillCompleteStep(sessionProfile);
-          showStep("complete");
-          return;
-        }
+      if (sessionProfile && sessionProfile.registrationComplete === false) {
         showStep("whatsapp");
         resetWhatsappConfirm();
         return;
@@ -789,8 +768,12 @@ export function runAuthGate() {
       };
       await setDoc(doc(firestore, "users", sessionUser.uid), { fullName, email: next.email, phone }, { merge: true });
       sessionProfile = next;
-      showStep("whatsapp");
-      resetWhatsappConfirm();
+      if (sessionProfile.registrationComplete === false) {
+        showStep("whatsapp");
+        resetWhatsappConfirm();
+        return;
+      }
+      await finish(sessionUser, sessionProfile);
     });
 
     document.getElementById("authBioLoginBtn").addEventListener("click", async () => {
