@@ -35,7 +35,7 @@ const STEPS = [
   },
   {
     title: "Si ganas",
-    text: "Sale tu número, tu nombre, tu ciudad y el premio. El dinero te llega a tu Nequi en el transcurso de 1 hora. A los 10 segundos el tablero se abre otra vez con los 100 números libres para jugar en el sorteo del día siguiente a las 9:00 p. m.",
+    text: "Sale tu número, tu nombre, tu ciudad y el premio. El dinero te llega a tu Nequi en el transcurso de 1 hora. 10 segundos después del sorteo, el tablero se abre otra vez con los 100 números libres para jugar en el sorteo del día siguiente a las 9:00 p. m.",
   },
   {
     title: "Listo",
