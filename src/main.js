@@ -746,7 +746,7 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
 
   function renderSelectionBar(value){
     const bar = document.getElementById('selectionBar');
-    if(selectedNumbers.size === 0){ bar.hidden = true; return; }
+    if(selectedNumbers.size === 0){ bar.hidden = !bar.hasAttribute('data-tour-pay'); return; }
     bar.hidden = false;
     document.getElementById('selCount').textContent = selectedNumbers.size;
     document.getElementById('selTotal').textContent = fmt(selectedNumbers.size * value);
@@ -1508,7 +1508,50 @@ import { bindAdminFilters, refreshAdminViews } from "./admin.js";
     renderAll();
     initDb();
     if(!isAdmin){
+      let playerTourSnap = null;
       const tourOpts = {
+        onStart: function(){
+          playerTourSnap = {
+            view: currentView,
+            card: openCardValue,
+            selected: Array.from(selectedNumbers)
+          };
+        },
+        show: function(name){
+          if(name === 'card'){
+            const value = CARD_VALUES[0];
+            selectedNumbers = new Set();
+            openCardValue = value;
+            showView('card');
+            renderCardDetail(value);
+            return;
+          }
+          showView(name);
+        },
+        forcePayBar: function(on){
+          const bar = document.getElementById('selectionBar');
+          if(!bar) return;
+          if(on){
+            bar.setAttribute('data-tour-pay', '1');
+            bar.hidden = false;
+          } else {
+            bar.removeAttribute('data-tour-pay');
+            if(selectedNumbers.size === 0) bar.hidden = true;
+          }
+        },
+        restore: function(){
+          const snap = playerTourSnap;
+          playerTourSnap = null;
+          if(!snap) return;
+          selectedNumbers = new Set(snap.selected || []);
+          openCardValue = snap.card;
+          if(snap.view === 'card' && snap.card){
+            showView('card');
+            renderCardDetail(snap.card);
+          } else {
+            showView(snap.view || 'lobby');
+          }
+        },
         onDone: function(){
           if(usingDb && currentUid){
             db.doc('users/' + currentUid).set({ playerTourDone: true }, { merge: true }).catch(function(){});
