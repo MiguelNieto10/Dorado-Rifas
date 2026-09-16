@@ -254,6 +254,7 @@ export function runAuthGate() {
         email: profile.email || user.email || "",
         joinedWhatsapp: !!profile.joinedWhatsapp,
         registrationComplete: profile.registrationComplete,
+        playerTourDone: !!profile.playerTourDone,
         isAdmin: isAdminAccount(profile, profile.username || user.displayName, user.email),
       });
     }

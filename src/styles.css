@@ -110,6 +110,8 @@
   .nav button.active{color:var(--gold-bright); background:var(--gold-wash);}
   .nav button.admin-only{display:none !important;}
   body.is-admin .nav button.admin-only{display:inline-flex !important;}
+  .nav button.player-only{display:inline-flex;}
+  body.is-admin .nav button.player-only{display:none !important;}
   .admin-bar{
     display:none !important;
     align-items:center; gap:8px; flex-wrap:wrap;
