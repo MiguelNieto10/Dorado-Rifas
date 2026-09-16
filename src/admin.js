@@ -412,15 +412,15 @@ function userCardHtml(u, i, extraClass) {
     ? new Date(u.createdAt).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })
     : "—";
   return (
-    '<details class="admin-user' + (extraClass ? " " + extraClass : "") + '">' +
+    '<details class="admin-user admin-user-tab' + (extraClass ? " " + extraClass : "") + '">' +
       '<summary class="admin-user-top">' +
         '<span class="admin-idx">' + (i + 1) + "</span>" +
-        '<div><div class="admin-user-name">' + escapeHtml(u.username) + "</div>" +
-        '<div class="admin-user-meta">Celular ' + escapeHtml(u.phone) + (u.email ? " · " + escapeHtml(u.email) : "") + " · Llegó " + escapeHtml(when) + "</div></div>" +
-        active +
+        '<span class="admin-user-name">' + escapeHtml(u.username) + "</span>" +
         '<span class="admin-user-chevron" aria-hidden="true">▾</span>' +
       "</summary>" +
       '<div class="admin-user-body">' +
+        '<p class="admin-user-meta">Celular ' + escapeHtml(u.phone) + (u.email ? " · " + escapeHtml(u.email) : "") + " · Llegó " + escapeHtml(when) + "</p>" +
+        active +
         '<div class="admin-user-grid">' +
           "<div><span class=\"k\">Tableros jugados</span><span class=\"v\">" + u.cardsPlayed + "</span></div>" +
           "<div><span class=\"k\">Compras</span><span class=\"v\">" + u.purchases + "</span></div>" +

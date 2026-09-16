@@ -132,25 +132,38 @@
     background:var(--surface); border:1px solid var(--border-soft); border-radius:var(--radius-m);
     padding:16px 18px; margin-bottom:12px;
   }
+  details.admin-user.admin-user-tab{
+    padding:0; margin-bottom:6px; overflow:hidden;
+  }
   details.admin-user > summary{
     list-style:none; cursor:pointer; touch-action:manipulation;
   }
   details.admin-user > summary::-webkit-details-marker{display:none;}
   .admin-user-top{display:flex; align-items:flex-start; gap:12px; flex-wrap:wrap;}
+  details.admin-user.admin-user-tab > .admin-user-top{
+    align-items:center; flex-wrap:nowrap; gap:8px;
+    min-height:36px; padding:6px 12px;
+  }
   .admin-idx{
     font-family:var(--font-mono); color:var(--gold-bright); font-weight:700; min-width:1.6rem; padding-top:2px;
   }
+  details.admin-user.admin-user-tab .admin-idx{padding-top:0; font-size:0.82rem; min-width:1.3rem;}
   .admin-user-name{font-weight:600; font-size:1.05rem;}
+  details.admin-user.admin-user-tab .admin-user-name{
+    flex:1; min-width:0; font-size:0.92rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
   .admin-user-meta{font-size:0.78rem; color:var(--text-faint);}
   .admin-user-chevron{
     margin-left:4px; color:var(--gold-bright); font-size:0.85rem; line-height:1.6; transition:transform .15s;
   }
+  details.admin-user.admin-user-tab .admin-user-chevron{margin-left:auto; line-height:1; flex-shrink:0;}
   details.admin-user[open] .admin-user-chevron{transform:rotate(180deg);}
+  details.admin-user.admin-user-tab .admin-user-body{padding:0 12px 10px;}
   .admin-live{
-    margin-left:auto; font-size:0.72rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;
+    display:inline-block; margin:6px 0 0; font-size:0.72rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;
     color:#0e1f18; background:var(--emerald-bright); border-radius:100px; padding:5px 10px;
   }
-  .admin-idle{margin-left:auto; font-size:0.72rem; color:var(--text-faint);}
+  .admin-idle{display:block; margin:6px 0 0; font-size:0.72rem; color:var(--text-faint);}
   .admin-user-pin{margin-bottom:22px;}
   .admin-user-self{
     border-color:var(--gold-dim);
@@ -168,7 +181,7 @@
   }
   .admin-user-month .section-label{margin-top:4px;}
   .admin-user-grid{
-    display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px 14px; margin-top:14px;
+    display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px 14px; margin-top:10px;
   }
   @media (max-width:560px){ .admin-user-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
   .admin-user-grid .k{display:block; font-size:0.62rem; letter-spacing:0.08em; text-transform:uppercase; color:var(--text-faint);}
