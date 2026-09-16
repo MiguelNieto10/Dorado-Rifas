@@ -3,43 +3,43 @@ const TOUR_KEY = "dorado.playerTour.v1.";
 const STEPS = [
   {
     title: "Bienvenido a Dorado",
-    text: "Este recorrido te muestra cómo apostar y participar en los sorteos. Solo ves tu plataforma de jugador: tableros, pagos y ganadores. No verás datos de otros jugadores ni nada de administrador.",
+    text: "Te voy a explicar, paso a paso, cómo jugar. Es fácil: eliges un tablero, marcas números, pagas y esperas el sorteo de las 9:00 p. m.",
   },
   {
-    title: "Arriba: Tableros, Ganadores y Tutorial",
-    text: "En Tableros eliges dónde jugar. En Ganadores ves el número, el nombre, la ciudad y el premio, para que quede claro que sí se gana. Tutorial vuelve a abrir este recorrido. Cómo funciona resume las reglas.",
+    title: "Arriba de la pantalla",
+    text: "Tableros: ahí eliges dónde jugar. Ganadores: ahí ves quién ganó, con número, nombre, ciudad y premio. Tutorial: si quieres, vuelves a ver esta explicación. Cómo funciona: las reglas cortas.",
   },
   {
-    title: "Seis tableros de juego",
-    text: "Hay tableros de $2.000, $5.000, $10.000, $20.000, $50.000 y $100.000. El precio es lo que pagas por cada número. Entras al que quieras, cuando quieras.",
+    title: "Seis tableros",
+    text: "Hay 6 tableros. Cada uno tiene un precio distinto: $2.000, $5.000, $10.000, $20.000, $50.000 y $100.000. Ese precio es lo que pagas por cada número que elijas.",
   },
   {
     title: "Números del 00 al 99",
-    text: "Marcas uno o varios números. Gris: libre. Dorado: los que estás eligiendo. Ámbar: reservado 1 hora (el tuyo dice Tú). Verde: ya está pago. Los números de otras personas se ven ocupados, sin su nombre ni celular.",
+    text: "Entras a un tablero y tocas los números que quieres. Gris: está libre. Dorado: los que tú marcaste. Amarillo: reservado un rato. Verde: ya está pago y entra al sorteo. Marcar no alcanza: hay que pagar.",
   },
   {
     title: "Pagar con Nequi",
-    text: "Cuando tengas números elegidos, pulsa Pagar con Nequi. El total es el valor del tablero por cada número. Envías el dinero a la Nequi de Dorado 3150505240.",
+    text: "Cuando ya tengas tus números, pulsa Pagar con Nequi. El total es el precio del tablero multiplicado por cuántos números elegiste. Envía ese dinero a la Nequi de Dorado: 3150505240.",
   },
   {
-    title: "Comprobante en el grupo",
-    text: "En el grupo de WhatsApp envía el comprobante a un administrador. En el mismo mensaje escribe tu nombre completo, el tablero y el número o números. Sin eso, a la 1 hora se libera.",
+    title: "Manda el comprobante",
+    text: "En el grupo de WhatsApp envía la foto del pago. En el mismo mensaje escribe tu nombre y apellido, el tablero y el número o números. Si no lo envías, a la 1 hora esos números se sueltan.",
   },
   {
     title: "Verde y premio",
-    text: "Cuando confirman tu pago, tu número pasa a verde. El premio es el 50% de lo recaudado en ese tablero. Siempre hay un ganador entre los números verdes y pagos.",
+    text: "Cuando confirman tu pago, tu número se pone verde. Solo los verdes juegan. El premio es la mitad de lo recaudado en ese tablero. Siempre hay un ganador entre los verdes.",
   },
   {
-    title: "Sorteo todos los días a las 9:00 p. m.",
-    text: "A las 9:00 p. m. (Bogotá) se sortea. Primero el tablero de $2.000; después $5.000, $10.000, $20.000, $50.000 y $100.000, en ese orden, solo si tienen verdes. Ves la cuenta 10 a 0 y el número ganador.",
+    title: "Sorteo a las 9:00 p. m.",
+    text: "Todos los días, a las 9:00 p. m. (hora de Bogotá), se hace el sorteo. Empieza el tablero de $2.000 y sigue en orden. Si un tablero no tiene números verdes, se salta. Ves la cuenta 10, 9, 8… hasta 0.",
   },
   {
     title: "Si ganas",
-    text: "Si el número es tuyo, ves que ganaste y el administrador te envía el premio a tu Nequi. A los 10 segundos el tablero se abre otra vez.",
+    text: "Sale tu número, tu nombre, tu ciudad y el premio. El dinero te llega a tu Nequi. A los 10 segundos el tablero se abre otra vez para jugar.",
   },
   {
-    title: "Listo para jugar",
-    text: "Elige un tablero, marca, paga y manda el comprobante. El sorteo es a las 9:00 p. m. Si quieres ver esto otra vez, pulsa Tutorial arriba.",
+    title: "Listo",
+    text: "Elige un tablero, marca, paga y manda el comprobante. El sorteo es todos los días a las 9:00 p. m. Si se te olvida, pulsa Tutorial arriba y lo ves otra vez.",
   },
 ];
 
