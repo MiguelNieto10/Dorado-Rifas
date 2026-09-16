@@ -724,6 +724,22 @@
   body.admin-entry .auth-check:has(#authRemember){display:none !important;}
   .auth-card label{display:block; font-size:0.72rem; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-faint); margin-top:10px;}
   .auth-card .input-field{margin:6px 0 0;}
+  .password-field{
+    position:relative; display:block;
+  }
+  .password-field .input-field{
+    width:100%; padding-right:46px; box-sizing:border-box;
+  }
+  .password-toggle{
+    position:absolute; right:6px; top:50%; transform:translateY(-50%);
+    width:36px; height:36px; border:none; background:transparent;
+    color:var(--gold-bright); cursor:pointer; display:flex; align-items:center; justify-content:center;
+    padding:0; touch-action:manipulation;
+  }
+  .password-toggle svg{width:22px; height:22px; display:block;}
+  .password-toggle .eye-off{display:none;}
+  .password-toggle.is-on .eye-on{display:none;}
+  .password-toggle.is-on .eye-off{display:block;}
   .auth-check{
     display:flex !important; align-items:center; gap:10px; margin:16px 0 8px;
     text-transform:none !important; letter-spacing:0 !important; font-size:0.86rem !important; color:var(--text-dim) !important;

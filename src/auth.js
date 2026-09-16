@@ -430,8 +430,10 @@ export function runAuthGate() {
         const el = document.getElementById(id);
         if (el) el.required = isRegister;
       });
+      const passEl = document.getElementById("authPassword");
+      if (passEl) passEl.autocomplete = isRegister ? "new-password" : "current-password";
       const forgot = document.getElementById("authForgotWrap");
-      if (forgot) forgot.hidden = mode !== "login";
+      if (forgot) forgot.hidden = isRegister;
       document.getElementById("authSubmit").textContent =
         mode === "admin" ? "Entrar como administrador" : isRegister ? "Crear cuenta" : "Entrar";
       syncRegisterSubmit();
@@ -823,7 +825,9 @@ export function runAuthGate() {
         const lead = document.querySelector("[data-auth-step='reset'] .auth-lead");
         if (lead) {
           lead.textContent =
-            "Si ese correo está en una cuenta, te llega un mensaje para crear una clave nueva. Revisa bandeja y spam. Luego entra con “Ya tengo cuenta”.";
+            "Si esa cuenta existe, el correo de recuperación ya salió a " +
+            email +
+            ". Ábrelo y crea una clave nueva. Revisa también spam. Luego entra con “Ya tengo cuenta”.";
         }
         document.getElementById("authResetSend").hidden = true;
         document.getElementById("authResetUser").disabled = true;
@@ -849,6 +853,18 @@ export function runAuthGate() {
       setAuthMode("admin");
     } else {
       syncRegisterFields();
+    }
+
+    const passToggle = document.getElementById("authPasswordToggle");
+    const passInput = document.getElementById("authPassword");
+    if (passToggle && passInput) {
+      passToggle.addEventListener("click", () => {
+        const show = passInput.type === "password";
+        passInput.type = show ? "text" : "password";
+        passToggle.classList.toggle("is-on", show);
+        passToggle.setAttribute("aria-pressed", show ? "true" : "false");
+        passToggle.setAttribute("aria-label", show ? "Ocultar clave" : "Mostrar clave");
+      });
     }
   });
 }
